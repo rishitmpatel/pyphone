@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1e1e1e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>PyPhone — Python</title>
+<style>
+/* ===== VS Code Dark+ palette ===== */
+:root{
+  --bg:#1e1e1e;         /* editor background      */
+  --panel:#252526;      /* sidebar / tab bar      */
+  --panel2:#2d2d2d;     /* hover / inactive tab   */
+  --line:#3c3c3c;       /* borders                */
+  --text:#d4d4d4;
+  --muted:#858585;
+  --accent:#007acc;     /* status bar blue        */
+  --btn:#0e639c;        /* VS Code button         */
+  --btn-h:#1177bb;
+  --run:#2ea043;        /* run button             */
+
+  /* syntax tokens */
+  --syn-default:#d4d4d4;
+  --syn-comment:#6a9955;
+  --syn-string:#ce9178;
+  --syn-number:#b5cea8;
+  --syn-keyword:#569cd6;   /* def, class, True, and  */
+  --syn-control:#c586c0;   /* if, for, return, import*/
+  --syn-function:#dcdcaa;  /* function names, print  */
+  --syn-class:#4ec9b0;     /* class names, modules   */
+  --syn-variable:#9cdcfe;
+  --syn-operator:#d4d4d4;
+  --syn-decorator:#dcdcaa;
+  --caret:#aeafad;
+
+  --fs:16px;
+  --vvh:100dvh;
+  --vvt:0px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text);font-size:15px;
+  position:fixed;inset:0;overscroll-behavior:none;
+}
+#app{
+  position:fixed;left:0;right:0;top:var(--vvt);height:var(--vvh);
+  display:flex;flex-direction:column;background:var(--bg);
+}
+
+/* ---------- top bar ---------- */
+#topbar{
+  flex:0 0 auto;height:50px;display:flex;align-items:center;
+  justify-content:space-between;padding:0 8px 0 12px;
+  background:var(--panel);border-bottom:1px solid var(--line);
+}
+#brand{font-weight:600;font-size:15px;letter-spacing:.2px;color:#cccccc;}
+#brand em{font-style:normal;color:var(--syn-keyword);}
+#topActions{display:flex;align-items:center;gap:6px;}
+.iconBtn{
+  background:var(--panel2);border:1px solid var(--line);color:var(--text);
+  width:40px;height:34px;border-radius:6px;font-size:16px;cursor:pointer;padding:0;
+}
+.iconBtn:active{background:var(--btn);color:#fff;}
+.runBtn{
+  background:var(--run);color:#fff;border:none;font-weight:600;
+  height:34px;padding:0 16px;border-radius:6px;font-size:14px;cursor:pointer;
+}
+.runBtn:disabled{opacity:.5;}
+
+/* ---------- editor with highlight overlay ---------- */
+#editorWrap{
+  flex:1 1 auto;min-height:0;position:relative;background:var(--bg);
+}
+#highlight,#editor{
+  position:absolute;inset:0;margin:0;border:0;border-radius:0;
+  padding:12px 14px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  font-size:var(--fs);
+  line-height:1.5;
+  letter-spacing:0;
+  tab-size:4;-moz-tab-size:4;
+  white-space:pre;
+  word-wrap:normal;overflow-wrap:normal;
+}
+#highlight{
+  z-index:1;overflow:hidden;pointer-events:none;
+  color:var(--syn-default);background:var(--bg);
+}
+#editor{
+  z-index:2;overflow:auto;resize:none;outline:none;
+  background:transparent;
+  color:transparent;
+  -webkit-text-fill-color:transparent;
+  caret-color:var(--caret);
+  -webkit-appearance:none;appearance:none;
+  -webkit-overflow-scrolling:touch;
+}
+#editor::selection{
+  background:rgba(38,79,120,.7);
+  color:transparent;
+  -webkit-text-fill-color:transparent;
+}
+
+/* syntax spans */
+.com{color:var(--syn-comment);}
+.str{color:var(--syn-string);}
+.num{color:var(--syn-number);}
+.kw {color:var(--syn-keyword);}
+.cf {color:var(--syn-control);}
+.fn {color:var(--syn-function);}
+.cls{color:var(--syn-class);}
+.var{color:var(--syn-variable);}
+.op {color:var(--syn-operator);}
+.dec{color:var(--syn-decorator);}
+.bi {color:var(--syn-function);}
+
+/* ---------- suggestion + symbol bars ---------- */
+#suggestBar{
+  flex:0 0 auto;display:flex;flex-wrap:wrap;gap:5px;padding:6px 8px;
+  background:var(--panel);border-top:1px solid var(--line);
+  max-height:88px;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  align-content:flex-start;
+}
+#symbolBar{
+  flex:0 0 auto;display:flex;gap:5px;padding:6px 8px;
+  padding-bottom:calc(6px + env(safe-area-inset-bottom));
+  background:var(--panel2);border-top:1px solid var(--line);
+  overflow-x:auto;overflow-y:hidden;white-space:nowrap;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;
+}
+#symbolBar::-webkit-scrollbar{display:none;}
+.chip{
+  flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+  min-width:36px;height:33px;padding:0 10px;border-radius:6px;
+  background:var(--panel2);border:1px solid var(--line);color:var(--text);
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;
+  cursor:pointer;user-select:none;-webkit-user-select:none;white-space:nowrap;
+}
+#symbolBar .chip{background:#2a2d2e;}
+.chip:active{background:var(--btn);color:#fff;border-color:var(--btn);}
+.chip.kw {color:var(--syn-keyword);}
+.chip.bi {color:var(--syn-function);}
+.chip.mod{color:var(--syn-class);}
+.chip.usr{color:var(--syn-variable);}
+.chip.mth{color:var(--syn-variable);}
+
+/* ---------- output sheet ---------- */
+#sheet{
+  position:absolute;left:0;right:0;bottom:0;height:58%;
+  background:#181818;border-top:1px solid var(--line);
+  transform:translateY(105%);transition:transform .22s ease;
+  display:flex;flex-direction:column;z-index:60;
+  border-radius:10px 10px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.65);
+}
+#sheet.open{transform:translateY(0);}
+#sheetHead{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 10px;border-bottom:1px solid var(--line);
+  font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.8px;
+  text-transform:uppercase;flex:0 0 auto;
+}
+.grp{display:flex;gap:6px;}
+.smallBtn{
+  background:var(--panel2);border:1px solid var(--line);color:var(--text);
+  border-radius:5px;padding:5px 11px;font-size:12px;cursor:pointer;
+}
+.smallBtn:active{background:var(--btn);color:#fff;}
+#output{
+  flex:1;margin:0;padding:10px 14px;overflow:auto;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.5;
+  white-space:pre-wrap;word-break:break-word;color:#cccccc;
+  -webkit-overflow-scrolling:touch;
+}
+#output .err{color:#f48771;}
+#output .info{color:var(--muted);}
+
+#scrim{
+  position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;
+  pointer-events:none;transition:opacity .22s;z-index:55;
+}
+#scrim.show{opacity:1;pointer-events:auto;}
+
+/* ---------- modal ---------- */
+#modal{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  z-index:200;padding:16px;background:rgba(0,0,0,.7);
+}
+#modal.open{display:flex;}
+#modalCard{
+  width:100%;max-width:400px;max-height:82vh;overflow:auto;
+  background:var(--panel);border:1px solid var(--line);border-radius:8px;
+  padding:6px;-webkit-overflow-scrolling:touch;
+}
+.mItem{
+  display:flex;align-items:center;gap:12px;padding:12px 14px;
+  border-radius:6px;cursor:pointer;font-size:14px;
+}
+.mItem:active{background:var(--panel2);}
+.mHead{padding:14px 14px 6px;font-size:11px;text-transform:uppercase;
+  letter-spacing:.8px;color:var(--muted);font-weight:700;}
+.mText{padding:4px 14px 14px;font-size:13.5px;line-height:1.6;color:#b9c2d6;}
+.mText code{background:var(--panel2);padding:1px 5px;border-radius:3px;
+  font-size:12.5px;color:var(--syn-string);}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header id="topbar">
+    <div id="brand">🐍 <em>PyPhone</em></div>
+    <div id="topActions">
+      <button id="btnKeyboard" class="iconBtn" title="Hide keyboard">⌄</button>
+      <button id="btnMenu" class="iconBtn" title="Menu">☰</button>
+      <button id="btnRun" class="runBtn">▶ Run</button>
+    </div>
+  </header>
+
+  <main id="editorWrap">
+    <pre id="highlight" aria-hidden="true"></pre>
+    <textarea id="editor" spellcheck="false" autocapitalize="off"
+      autocorrect="off" autocomplete="off" wrap="off"
+      aria-label="Python code editor"></textarea>
+  </main>
+
+  <div id="suggestBar"></div>
+  <div id="symbolBar"></div>
+
+  <div id="scrim"></div>
+  <div id="sheet">
+    <div id="sheetHead">
+      <span>Output</span>
+      <div class="grp">
+        <button class="smallBtn" id="btnClearOut">Clear</button>
+        <button class="smallBtn" id="btnCloseOut">✕</button>
+      </div>
+    </div>
+    <pre id="output"></pre>
+  </div>
+</div>
+
+<div id="modal"><div id="modalCard"></div></div>
+<input type="file" id="fileInput" accept=".py,.txt,text/plain" style="display:none">
+
+<script>
+"use strict";
+
+/* ============================================================
+   1. DATA
+   ============================================================ */
+const PY_KEYWORDS_BLUE = new Set([
+  'def','class','lambda','global','nonlocal','del','assert','pass',
+  'async','await','and','or','not','in','is','True','False','None',
+  'self','cls'
+]);
+const PY_KEYWORDS_PURPLE = new Set([
+  'if','elif','else','for','while','return','break','continue','try',
+  'except','finally','with','as','raise','yield','import','from'
+]);
+const PY_BUILTINS_SET = new Set([
+  'abs','all','any','ascii','bin','bool','bytearray','bytes','callable','chr',
+  'classmethod','compile','complex','delattr','dict','dir','divmod','enumerate',
+  'eval','exec','filter','float','format','frozenset','getattr','globals',
+  'hasattr','hash','help','hex','id','input','int','isinstance','issubclass',
+  'iter','len','list','locals','map','max','min','next','object','oct','open',
+  'ord','pow','print','property','range','repr','reversed','round','set',
+  'setattr','slice','sorted','staticmethod','str','sum','super','tuple','type',
+  'vars','zip','Exception','ValueError','TypeError','KeyError','IndexError',
+  'RuntimeError','StopIteration','ZeroDivisionError','NameError',
+  'AttributeError','ImportError','FileNotFoundError','OSError','IOError',
+  'ArithmeticError','LookupError','AssertionError','NotImplementedError',
+  'BaseException'
+]);
+const PY_MODULES = ['math','random','time','datetime','json','os','sys','re','collections',
+  'itertools','functools','statistics','string','decimal','fractions','pathlib','csv',
+  'urllib','hashlib','base64','copy','pickle','io','textwrap','pprint','traceback',
+  'typing','dataclasses','enum','abc','operator','heapq','bisect','array','queue',
+  'uuid','sqlite3','unittest','threading','asyncio','subprocess','socket','glob',
+  'shutil','tempfile','calendar'];
+const PY_METHODS = [...new Set(['append','clear','copy','count','extend','index','insert',
+  'pop','remove','reverse','sort','add','difference','discard','intersection','isdisjoint',
+  'issubset','issuperset','symmetric_difference','union','update','capitalize','casefold',
+  'center','encode','endswith','find','format','isalnum','isalpha','isascii','isdecimal',
+  'isdigit','islower','isnumeric','isprintable','isspace','istitle','isupper','join',
+  'ljust','lower','lstrip','partition','removeprefix','removesuffix','replace','rfind',
+  'rindex','rjust','rpartition','rsplit','rstrip','split','splitlines','startswith',
+  'strip','swapcase','title','translate','upper','zfill','get','items','keys','popitem',
+  'setdefault','values','read','readline','readlines','write','writelines','seek','tell',
+  'close','flush','real','imag','conjugate','bit_length','to_bytes','from_bytes',
+  'total_seconds','strftime','timestamp','sqrt','floor','ceil','factorial','gcd',
+  'permutations','combinations','product','chain','groupby','reduce','defaultdict',
+  'Counter','namedtuple','deque'])];
+
+const SNIPPETS = [
+  {label:'print',      text:'print(|)'},
+  {label:'input',      text:'input(|)'},
+  {label:'if',         text:'if |:\n    '},
+  {label:'elif',       text:'elif |:\n    '},
+  {label:'else',       text:'else:\n    |'},
+  {label:'for range',  text:'for i in range(|):\n    '},
+  {label:'for in',     text:'for x in |:\n    '},
+  {label:'enumerate',  text:'for i, x in enumerate(|):\n    '},
+  {label:'while',      text:'while |:\n    '},
+  {label:'def',        text:'def |():\n    '},
+  {label:'class',      text:'class |:\n    '},
+  {label:'return',     text:'return |'},
+  {label:'try',        text:'try:\n    |\nexcept Exception as e:\n    print(e)'},
+  {label:'with open',  text:'with open("|", "r") as f:\n    '},
+  {label:'len',        text:'len(|)'},
+  {label:'range',      text:'range(|)'},
+  {label:'append',     text:'.append(|)'},
+  {label:'list comp',  text:'[| for x in ]'},
+  {label:'f-string',   text:'f"|{}"'},
+  {label:'lambda',     text:'lambda |: '},
+  {label:'import',     text:'import |'},
+  {label:'from import',text:'from | import '},
+  {label:'main',       text:'if __name__ == "__main__":\n    |'},
+  {label:'None',       text:'None'},
+  {label:'True',       text:'True'},
+  {label:'False',      text:'False'},
+  {label:'self',       text:'self'},
+];
+
+const SYMBOLS = [
+  {l:'⇥', a:'indent'},
+  {l:'⇤', a:'unindent'},
+  {l:'⏎', t:'\n'},
+  {l:':', t:':'},
+  {l:'(', t:'()', pair:')', caret:1},
+  {l:')', t:')'},
+  {l:'[', t:'[]', pair:']', caret:1},
+  {l:']', t:']'},
+  {l:'{', t:'{}', pair:'}', caret:1},
+  {l:'}', t:'}'},
+  {l:'"', t:'""', pair:'"', caret:1},
+  {l:"'", t:"''", pair:"'", caret:1},
+  {l:'=',  t:' = '},
+  {l:'==', t:' == '},
+  {l:'!=', t:' != '},
+  {l:'<=', t:' <= '},
+  {l:'>=', t:' >= '},
+  {l:'<',  t:' < '},
+  {l:'>',  t:' > '},
+  {l:'+',  t:' + '},
+  {l:'-',  t:' - '},
+  {l:'*',  t:' * '},
+  {l:'/',  t:' / '},
+  {l:'//', t:' // '},
+  {l:'%',  t:' % '},
+  {l:'**', t:' ** '},
+  {l:'->', t:' -> '},
+  {l:',',  t:', '},
+  {l:'.',  t:'.'},
+  {l:'_',  t:'_'},
+  {l:'#',  t:'# '},
+  {l:'\\n', t:'\\n'},
+];
+
+const DEFAULT_CODE =
+`# Welcome to PyPhone 🐍
+# Tap ▶ Run. Use the chips below to type fast.
+
+name = "world"
+print(f"Hello, {name}!")
+
+for i in range(5):
+    print(i, i ** 2)
+
+def greet(who):
+    return f"Hi {who}!"
+
+print(greet("Python"))
+`;
+
+const EXAMPLES = {
+'Hello World':
+`print("Hello, world!")
+
+name = input("What's your name? ")
+print(f"Nice to meet you, {name}!")
+`,
+'FizzBuzz':
+`for n in range(1, 21):
+    if n % 15 == 0:
+        print("FizzBuzz")
+    elif n % 3 == 0:
+        print("Fizz")
+    elif n % 5 == 0:
+        print("Buzz")
+    else:
+        print(n)
+`,
+'Fibonacci':
+`def fib(n):
+    a, b = 0, 1
+    out = []
+    for _ in range(n):
+        out.append(a)
+        a, b = b, a + b
+    return out
+
+print(fib(15))
+`,
+'Lists & Dicts':
+`fruits = ["apple", "banana", "cherry"]
+fruits.append("date")
+print(fruits)
+print(sorted(fruits, key=len))
+print([f.upper() for f in fruits if len(f) > 5])
+
+scores = {"alice": 92, "bob": 78, "carol": 85}
+for name, score in sorted(scores.items(), key=lambda kv: -kv[1]):
+    print(f"{name:8} {score}")
+`,
+'Classes':
+`class Animal:
+    def __init__(self, name, sound):
+        self.name = name
+        self.sound = sound
+
+    def speak(self):
+        return f"{self.name} says {self.sound}"
+
+class Dog(Animal):
+    def __init__(self, name):
+        super().__init__(name, "Woof")
+
+d = Dog("Rex")
+print(d.speak())
+`,
+};
+
+/* ============================================================
+   2. DOM
+   ============================================================ */
+const editor     = document.getElementById('editor');
+const highlightEl= document.getElementById('highlight');
+const suggestBar = document.getElementById('suggestBar');
+const symbolBar  = document.getElementById('symbolBar');
+const outputEl   = document.getElementById('output');
+const sheet      = document.getElementById('sheet');
+const scrim      = document.getElementById('scrim');
+const modal      = document.getElementById('modal');
+const modalCard  = document.getElementById('modalCard');
+const btnRun     = document.getElementById('btnRun');
+const fileInput  = document.getElementById('fileInput');
+
+const STORE_CODE = 'pyphone.code.v2';
+const STORE_FONT = 'pyphone.font.v2';
+
+/* ============================================================
+   3. VIEWPORT
+   ============================================================ */
+function updateViewport(){
+  const vv = window.visualViewport;
+  if (!vv) return;
+  document.documentElement.style.setProperty('--vvh', vv.height + 'px');
+  document.documentElement.style.setProperty('--vvt', vv.offsetTop + 'px');
+}
+if (window.visualViewport){
+  window.visualViewport.addEventListener('resize', updateViewport);
+  window.visualViewport.addEventListener('scroll', () => {
+    updateViewport(); window.scrollTo(0, 0);
+  });
+}
+window.addEventListener('orientationchange', () => setTimeout(updateViewport, 250));
+updateViewport();
+
+/* ============================================================
+   4. SYNTAX HIGHLIGHTER  (VS Code Dark+)
+   ============================================================ */
+function esc(s){
+  return s.replace(/[&<>]/g, c => c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;');
+}
+
+const TOKEN_RE = new RegExp(
+  '(?<comment>#[^\\n]*)' +
+  '|(?<string>"""[\\s\\S]*?"""|\'\'\'[\\s\\S]*?\'\'\'|"(?:\\\\.|[^"\\\\\\n])*"|\'(?:\\\\.|[^\'\\\\\\n])*\')' +
+  '|(?<decorator>@[A-Za-z_]\\w*)' +
+  '|(?<number>\\b(?:0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+|\\d[\\d_]*(?:\\.\\d[\\d_]*)?(?:[eE][+-]?\\d+)?))' +
+  '|(?<word>[A-Za-z_]\\w*)' +
+  '|(?<op>[+\\-*/%=<>!&|^~]+)' +
+  '|(?<punct>[(){}\\[\\],.:;])',
+  'g'
+);
+
+function highlightPython(code){
+  const tokens = [];
+  let last = 0, m;
+  TOKEN_RE.lastIndex = 0;
+  while ((m = TOKEN_RE.exec(code)) !== null){
+    if (m.index > last) tokens.push({ t:'plain', v: code.slice(last, m.index) });
+    const g = m.groups;
+    let kind = 'plain';
+    if (g.comment !== undefined) kind = 'comment';
+    else if (g.string !== undefined) kind = 'string';
+    else if (g.decorator !== undefined) kind = 'decorator';
+    else if (g.number !== undefined) kind = 'number';
+    else if (g.word !== undefined) kind = 'word';
+    else if (g.op !== undefined) kind = 'op';
+    else if (g.punct !== undefined) kind = 'punct';
+    tokens.push({ t: kind, v: m[0] });
+    last = m.index + m[0].length;
+  }
+  if (last < code.length) tokens.push({ t:'plain', v: code.slice(last) });
+
+  let html = '';
+  let prevWord = '';
+  for (let i = 0; i < tokens.length; i++){
+    const tk = tokens[i];
+    if (tk.t === 'word'){
+      let j = i + 1;
+      while (j < tokens.length && tokens[j].t === 'plain') j++;
+      const nx = tokens[j];
+      const isCall = nx && nx.v.charAt(0) === '(';
+      let cls;
+      if (prevWord === 'def') cls = 'fn';
+      else if (prevWord === 'class') cls = 'cls';
+      else if (PY_KEYWORDS_BLUE.has(tk.v)) cls = 'kw';
+      else if (PY_KEYWORDS_PURPLE.has(tk.v)) cls = 'cf';
+      else if (PY_BUILTINS_SET.has(tk.v)) cls = 'bi';
+      else if (isCall) cls = 'fn';
+      else cls = 'var';
+      html += '<span class="' + cls + '">' + esc(tk.v) + '</span>';
+      prevWord = tk.v;
+    }
+    else if (tk.t === 'comment')   html += '<span class="com">' + esc(tk.v) + '</span>';
+    else if (tk.t === 'string')    html += '<span class="str">' + esc(tk.v) + '</span>';
+    else if (tk.t === 'number')    html += '<span class="num">' + esc(tk.v) + '</span>';
+    else if (tk.t === 'decorator') html += '<span class="dec">' + esc(tk.v) + '</span>';
+    else if (tk.t === 'op')        html += '<span class="op">'  + esc(tk.v) + '</span>';
+    else                           html += esc(tk.v);
+  }
+  return html;
+}
+
+let hlQueued = false;
+function scheduleHighlight(){
+  if (hlQueued) return;
+  hlQueued = true;
+  requestAnimationFrame(() => {
+    hlQueued = false;
+    highlightEl.innerHTML = highlightPython(editor.value) + '\u200b';
+    highlightEl.scrollTop  = editor.scrollTop;
+    highlightEl.scrollLeft = editor.scrollLeft;
+  });
+}
+editor.addEventListener('scroll', () => {
+  highlightEl.scrollTop  = editor.scrollTop;
+  highlightEl.scrollLeft = editor.scrollLeft;
+}, { passive:true });
+
+/* ============================================================
+   5. EDITOR PRIMITIVES
+   ============================================================ */
+function focusEditor(){
+  if (document.activeElement !== editor) editor.focus({ preventScroll:true });
+}
+function insertRaw(text, caretOffset){
+  focusEditor();
+  const start = editor.selectionStart;
+  let ok = false;
+  try { ok = document.execCommand('insertText', false, text); } catch(e){ ok = false; }
+  if (!ok){
+    const v = editor.value, e = editor.selectionEnd;
+    editor.value = v.slice(0, start) + text + v.slice(e);
+    editor.setSelectionRange(start + text.length, start + text.length);
+  }
+  if (caretOffset !== undefined){
+    const p = start + caretOffset;
+    try { editor.setSelectionRange(p, p); } catch(e){}
+  }
+  onEditorChange();
+}
+function replaceRange(start, end, text, caretOffset){
+  focusEditor();
+  try { editor.setSelectionRange(start, end); } catch(e){}
+  let ok = false;
+  try { ok = document.execCommand('insertText', false, text); } catch(e){ ok = false; }
+  if (!ok){
+    const v = editor.value;
+    editor.value = v.slice(0, start) + text + v.slice(end);
+  }
+  const p = start + (caretOffset === undefined ? text.length : caretOffset);
+  try { editor.setSelectionRange(p, p); } catch(e){}
+  onEditorChange();
+}
+function insertSnippet(snippet){
+  focusEditor();
+  const start = editor.selectionStart;
+  const before = editor.value.slice(0, start);
+  const lineStart = before.lastIndexOf('\n') + 1;
+  const lineIndent = (before.slice(lineStart).match(/^[ \t]*/) || [''])[0];
+  const PH = '\u0000';
+  const hasMarker = snippet.indexOf('|') !== -1;
+  const raw = hasMarker ? snippet.replace('|', PH) : snippet + PH;
+  const indented = raw.split('\n').map((line, i) => {
+    if (i === 0 || line.trim() === '') return line;
+    return lineIndent + line;
+  }).join('\n');
+  const caret = indented.indexOf(PH);
+  const finalText = indented.replace(PH, '');
+  insertRaw(finalText, caret < 0 ? finalText.length : caret);
+}
+function indent(){ insertRaw('    '); }
+function unindent(){
+  const pos = editor.selectionStart, v = editor.value;
+  const ls = v.lastIndexOf('\n', pos - 1) + 1;
+  const m = v.slice(ls, ls + 4).match(/^ +/);
+  if (!m) return;
+  const n = Math.min(m[0].length, 4);
+  editor.value = v.slice(0, ls) + v.slice(ls + n);
+  const np = Math.max(ls, pos - n);
+  focusEditor();
+  editor.setSelectionRange(np, np);
+  onEditorChange();
+}
+
+/* ============================================================
+   6. AUTO-INDENT + TAB
+   ============================================================ */
+editor.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey){
+    e.preventDefault();
+    const pos = editor.selectionStart;
+    const before = editor.value.slice(0, pos);
+    const line = before.slice(before.lastIndexOf('\n') + 1);
+    let ind = (line.match(/^[ \t]*/) || [''])[0];
+    let extra = '';
+    if (line.trim() === '') ind = '';
+    else if (/:\s*(#.*)?$/.test(line)) extra = '    ';
+    insertRaw('\n' + ind + extra);
+    return;
+  }
+  if (e.key === 'Tab'){ e.preventDefault(); insertRaw('    '); }
+});
+
+/* ============================================================
+   7. SUGGESTIONS
+   ============================================================ */
+function currentContext(){
+  const pos = editor.selectionStart;
+  if (pos !== editor.selectionEnd) return { mode:'none' };
+  const before = editor.value.slice(0, pos);
+  const m = before.match(/[A-Za-z_][A-Za-z0-9_]*$/);
+  if (m){
+    const head = before.slice(0, before.length - m[0].length);
+    if (/\.$/.test(head) && !/\d\.$/.test(head))
+      return { mode:'attr', word:m[0], start: pos - m[0].length };
+    return { mode:'word', word:m[0], start: pos - m[0].length };
+  }
+  if (/\.$/.test(before) && !/\d\.$/.test(before))
+    return { mode:'attr', word:'', start: pos };
+  return { mode:'none' };
+}
+function getUserNames(){
+  const names = new Set(), src = editor.value;
+  let m;
+  const reDef = /\b(?:def|class)\s+([A-Za-z_]\w*)/g;
+  while ((m = reDef.exec(src))) names.add(m[1]);
+  const reAsg = /^[ \t]*([A-Za-z_]\w*)\s*=(?!=)/gm;
+  while ((m = reAsg.exec(src))) names.add(m[1]);
+  const reImp = /^[ \t]*(?:from\s+\S+\s+)?import\s+([A-Za-z_]\w*)/gm;
+  while ((m = reImp.exec(src))) names.add(m[1]);
+  return [...names];
+}
+function makeChip(label, cls, fn){
+  const d = document.createElement('div');
+  d.className = 'chip' + (cls ? ' ' + cls : '');
+  d.textContent = label;
+  d.setAttribute('role','button');
+  d.addEventListener('click', (e) => { e.preventDefault(); fn(); });
+  return d;
+}
+let renderQueued = false;
+function scheduleRender(){
+  if (renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => { renderQueued = false; renderSuggestions(); });
+}
+function renderSuggestions(){
+  const ctx = currentContext();
+  const frag = document.createDocumentFragment();
+  let made = 0;
+  const MAX = 50;
+
+  if (ctx.mode === 'attr'){
+    const w = ctx.word.toLowerCase();
+    for (const m of PY_METHODS){
+      if (made >= MAX) break;
+      if (!m.toLowerCase().startsWith(w) || m === ctx.word) continue;
+      const ins = m + '()';
+      frag.appendChild(makeChip(ins, 'mth', () => {
+        replaceRange(ctx.start, ctx.start + ctx.word.length, ins, m.length + 1);
+      }));
+      made++;
+    }
+  } else if (ctx.mode === 'word'){
+    const w = ctx.word.toLowerCase();
+    const pool = [];
+    PY_KEYWORDS_BLUE.forEach(k => pool.push([k,'kw']));
+    PY_KEYWORDS_PURPLE.forEach(k => pool.push([k,'cf']));
+    PY_BUILTINS_SET.forEach(k => pool.push([k,'bi']));
+    PY_MODULES.forEach(k => pool.push([k,'mod']));
+    getUserNames().forEach(k => pool.push([k,'usr']));
+    const seen = new Set();
+    for (const [name, cls] of pool){
+      if (made >= MAX) break;
+      const low = name.toLowerCase();
+      if (low === w || !low.startsWith(w) || seen.has(name)) continue;
+      seen.add(name);
+      frag.appendChild(makeChip(name, cls, () => {
+        replaceRange(ctx.start, ctx.start + ctx.word.length, name, name.length);
+      }));
+      made++;
+    }
+  }
+  if (made === 0){
+    for (const s of SNIPPETS)
+      frag.appendChild(makeChip(s.label, '', () => insertSnippet(s.text)));
+  }
+  suggestBar.textContent = '';
+  suggestBar.appendChild(frag);
+}
+
+/* ============================================================
+   8. SYMBOL BAR
+   ============================================================ */
+function handleSymbol(s){
+  if (s.a === 'indent') return indent();
+  if (s.a === 'unindent') return unindent();
+  if (s.pair){
+    const pos = editor.selectionStart, v = editor.value;
+    if (pos === editor.selectionEnd && v[pos] === s.pair){
+      focusEditor();
+      editor.setSelectionRange(pos + 1, pos + 1);
+      onEditorChange();
+      return;
+    }
+    return insertRaw(s.t, s.caret);
+  }
+  insertRaw(s.t);
+}
+function buildSymbolBar(){
+  const frag = document.createDocumentFragment();
+  for (const s of SYMBOLS){
+    const d = document.createElement('div');
+    d.className = 'chip';
+    d.textContent = s.l;
+    d.setAttribute('role','button');
+    d.addEventListener('click', (e) => { e.preventDefault(); handleSymbol(s); });
+    frag.appendChild(d);
+  }
+  symbolBar.appendChild(frag);
+}
+
+/* ============================================================
+   9. CHANGE + PERSIST
+   ============================================================ */
+let saveTimer = null;
+function persist(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try { localStorage.setItem(STORE_CODE, editor.value); } catch(e){}
+  }, 400);
+}
+function onEditorChange(){
+  scheduleHighlight();
+  scheduleRender();
+  persist();
+}
+editor.addEventListener('input', onEditorChange);
+editor.addEventListener('click', scheduleRender);
+editor.addEventListener('keyup', (e) => {
+  if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(e.key))
+    scheduleRender();
+});
+
+/* ============================================================
+   10. OUTPUT SHEET
+   ============================================================ */
+function openSheet(){ sheet.classList.add('open'); scrim.classList.add('show'); }
+function closeSheet(){ sheet.classList.remove('open'); scrim.classList.remove('show'); }
+scrim.addEventListener('click', closeSheet);
+document.getElementById('btnCloseOut').addEventListener('click', closeSheet);
+document.getElementById('btnClearOut').addEventListener('click', () => { outputEl.textContent = ''; });
+
+function appendOut(text, cls){
+  const span = document.createElement('span');
+  if (cls) span.className = cls;
+  span.textContent = text;
+  outputEl.appendChild(span);
+  outputEl.scrollTop = outputEl.scrollHeight;
+}
+function clearOutput(){ outputEl.textContent = ''; }
+
+/* ============================================================
+   11. PYODIDE RUNNER
+   ============================================================ */
+let pyodide = null, pyLoading = null, running = false;
+const PYODIDE_VERSION = '0.26.2';
+const PYODIDE_BASE = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
+
+function loadScript(src){
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = () => rej(new Error('load fail ' + src));
+    document.head.appendChild(s);
+  });
+}
+async function ensurePyodide(){
+  if (pyodide) return pyodide;
+  if (pyLoading) return pyLoading;
+  pyLoading = (async () => {
+    if (typeof loadPyodide === 'undefined')
+      await loadScript(PYODIDE_BASE + 'pyodide.js');
+    const py = await loadPyodide({ indexURL: PYODIDE_BASE });
+    py.setStdout({ batched: (msg) => appendOut(msg + '\n') });
+    py.setStderr({ batched: (msg) => appendOut(msg + '\n', 'err') });
+    try {
+      py.setStdin({ stdin: () => {
+        try { const r = window.prompt('input()'); return r === null ? '' : r; }
+        catch(e){ return ''; }
+      }});
+    } catch(e){}
+    pyodide = py;
+    return py;
+  })();
+  try { return await pyLoading; }
+  catch(err){ pyLoading = null; throw err; }
+}
+async function runCode(){
+  if (running) return;
+  if (!editor.value.trim()){
+    openSheet(); clearOutput();
+    appendOut('Nothing to run.\n', 'info');
+    return;
+  }
+  running = true;
+  btnRun.disabled = true;
+  btnRun.textContent = '⏳';
+  openSheet(); clearOutput();
+  try {
+    const py = await ensurePyodide();
+    await py.runPythonAsync(editor.value);
+  } catch(err){
+    let msg = (err && err.message) ? err.message : String(err);
+    if (!msg.endsWith('\n')) msg += '\n';
+    appendOut(msg, 'err');
+  } finally {
+    running = false;
+    btnRun.disabled = false;
+    btnRun.textContent = '▶ Run';
+  }
+}
+btnRun.addEventListener('click', runCode);
+document.getElementById('btnKeyboard').addEventListener('click', () => {
+  editor.blur(); window.scrollTo(0, 0);
+});
+
+/* ============================================================
+   12. MENU / MODAL
+   ============================================================ */
+function openModal(builder){ modalCard.textContent = ''; builder(modalCard); modal.classList.add('open'); }
+function closeModal(){ modal.classList.remove('open'); }
+modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+function menuItem(label, fn){
+  const d = document.createElement('div');
+  d.className = 'mItem'; d.textContent = label;
+  d.addEventListener('click', () => { closeModal(); setTimeout(fn, 10); });
+  return d;
+}
+function menuHead(text){
+  const d = document.createElement('div');
+  d.className = 'mHead'; d.textContent = text; return d;
+}
+function showMenu(){
+  openModal((card) => {
+    card.appendChild(menuItem('📄  New file', newFile));
+    card.appendChild(menuItem('📂  Open a .py file', () => fileInput.click()));
+    card.appendChild(menuItem('💾  Download .py', downloadPy));
+    card.appendChild(menuItem('🧹  Clear output', clearOutput));
+    card.appendChild(menuItem('♻️  Restart Python', restartPython));
+    card.appendChild(menuItem('🔠  Cycle editor font size', cycleFont));
+    card.appendChild(menuHead('Examples'));
+    for (const name of Object.keys(EXAMPLES))
+      card.appendChild(menuItem('📘  ' + name, () => loadExample(name)));
+    card.appendChild(menuHead('Help'));
+    card.appendChild(menuItem('ℹ️  How to use', showHelp));
+  });
+}
+function newFile(){
+  if (editor.value.trim() && !confirm('Clear the editor?')) return;
+  editor.value = ''; onEditorChange(); focusEditor();
+}
+function loadExample(name){
+  const code = EXAMPLES[name]; if (!code) return;
+  if (editor.value.trim() && !confirm(`Load "${name}"?`)) return;
+  editor.value = code; onEditorChange(); editor.scrollTop = 0;
+}
+function downloadPy(){
+  const blob = new Blob([editor.value], { type:'text/x-python' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'script.py';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+fileInput.addEventListener('change', () => {
+  const f = fileInput.files && fileInput.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => { editor.value = String(r.result || ''); onEditorChange(); editor.scrollTop = 0; };
+  r.readAsText(f); fileInput.value = '';
+});
+async function restartPython(){
+  if (!pyodide) return;
+  clearOutput();
+  try {
+    await pyodide.runPythonAsync(`
+import sys
+for _n in list(globals().keys()):
+    if not _n.startswith('_'):
+        del globals()[_n]
+`);
+    appendOut('Python state cleared.\n', 'info');
+  } catch(e){ appendOut(String(e.message || e) + '\n', 'err'); }
+}
+function cycleFont(){
+  const sizes = [16, 17, 18, 20, 22];
+  let cur = parseInt(localStorage.getItem(STORE_FONT) || '16', 10);
+  let idx = sizes.indexOf(cur); if (idx === -1) idx = 0;
+  const next = sizes[(idx + 1) % sizes.length];
+  localStorage.setItem(STORE_FONT, String(next));
+  applyFont();
+}
+function applyFont(){
+  const fs = parseInt(localStorage.getItem(STORE_FONT) || '16', 10);
+  const safe = Math.max(16, isNaN(fs) ? 16 : fs);
+  document.documentElement.style.setProperty('--fs', safe + 'px');
+}
+function showHelp(){
+  openModal((card) => {
+    card.appendChild(menuHead('How to use PyPhone'));
+    const body = document.createElement('div');
+    body.className = 'mText';
+    body.innerHTML = `
+      <p><b>▶ Run</b> executes real CPython via WebAssembly. First run
+      downloads ~10 MB; after that it's cached.</p>
+      <p><b>Type faster:</b><br>
+      • Suggestions appear as you type — tap to insert.<br>
+      • Not mid-word? The bar shows ready-made snippets.<br>
+      • Tap <code>.</code> after a value to see its methods.<br>
+      • <code>⇥</code> indents, <code>⇤</code> unindents.<br>
+      • <code>(</code> inserts <code>()</code> and puts the cursor inside.</p>
+      <p><b>Auto-indent:</b> Enter after a line ending in <code>:</code>
+      indents automatically.</p>
+      <p>Code is auto-saved in this browser. Use ☰ → <i>Download .py</i>
+      to export.</p>
+    `;
+    card.appendChild(body);
+    card.appendChild(menuItem('Close', () => {}));
+  });
+}
+document.getElementById('btnMenu').addEventListener('click', showMenu);
+
+/* ============================================================
+   13. INIT
+   ============================================================ */
+(function init(){
+  applyFont();
+  buildSymbolBar();
+  let saved = null;
+  try { saved = localStorage.getItem(STORE_CODE); } catch(e){}
+  editor.value = (saved && saved.length) ? saved : DEFAULT_CODE;
+  scheduleHighlight();
+  renderSuggestions();
+  updateViewport();
+  if (navigator.onLine !== false)
+    setTimeout(() => { ensurePyodide().catch(() => {}); }, 1500);
+})();
+window.addEventListener('beforeunload', () => {
+  try { localStorage.setItem(STORE_CODE, editor.value); } catch(e){}
+});
+</script>
+</body>
+</html>
