@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,16 +12,41 @@
 <link rel="apple-touch-icon" href="icon.svg">
 <meta name="apple-mobile-web-app-title" content="PyPhone">
 <style>
+/* ==================== THEMES ==================== */
 :root{
   --bg:#1e1e1e; --panel:#252526; --panel2:#2d2d2d; --line:#3c3c3c;
   --text:#d4d4d4; --muted:#858585; --accent:#007acc;
   --btn:#0e639c; --run:#2ea043;
+
   --syn-default:#d4d4d4; --syn-comment:#6a9955; --syn-string:#ce9178;
   --syn-number:#b5cea8; --syn-keyword:#569cd6; --syn-control:#c586c0;
   --syn-function:#dcdcaa; --syn-class:#4ec9b0; --syn-variable:#9cdcfe;
   --caret:#aeafad;
+
+  --sheet-bg:#181818;
+  --gutter-fg:#6e7681; --gutter-bg:#1e1e1e; --gutter-border:#2a2a2a;
+  --output-fg:#cccccc; --sym-bg:#2a2d2e; --brand-fg:#cccccc;
+  --tab-close-hover:rgba(255,255,255,.08);
+
   --fs:16px; --vvh:100dvh; --vvt:0px;
 }
+:root[data-theme="light"]{
+  --bg:#ffffff; --panel:#f3f3f3; --panel2:#e8e8e8; --line:#d4d4d4;
+  --text:#1f1f1f; --muted:#6e6e6e; --accent:#007acc;
+  --btn:#007acc; --run:#16825d;
+
+  --syn-default:#000000; --syn-comment:#008000; --syn-string:#a31515;
+  --syn-number:#098658; --syn-keyword:#0000ff; --syn-control:#af00db;
+  --syn-function:#795e26; --syn-class:#267f99; --syn-variable:#001080;
+  --caret:#000000;
+
+  --sheet-bg:#f3f3f3;
+  --gutter-fg:#237893; --gutter-bg:#ffffff; --gutter-border:#e0e0e0;
+  --output-fg:#1f1f1f; --sym-bg:#e8e8e8; --brand-fg:#333333;
+  --tab-close-hover:rgba(0,0,0,.08);
+}
+
+/* ==================== BASE ==================== */
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);}
 body{
@@ -32,10 +56,12 @@ body{
 }
 #app{position:fixed;left:0;right:0;top:var(--vvt);height:var(--vvh);
   display:flex;flex-direction:column;background:var(--bg);}
+
+/* ==================== TOP BAR ==================== */
 #topbar{flex:0 0 auto;height:50px;display:flex;align-items:center;
   justify-content:space-between;padding:0 8px 0 12px;
   background:var(--panel);border-bottom:1px solid var(--line);}
-#brand{font-weight:600;font-size:15px;color:#cccccc;}
+#brand{font-weight:600;font-size:15px;color:var(--brand-fg);}
 #brand em{font-style:normal;color:var(--syn-keyword);}
 #topActions{display:flex;align-items:center;gap:6px;}
 .iconBtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);
@@ -45,25 +71,51 @@ body{
   height:34px;padding:0 16px;border-radius:6px;font-size:14px;cursor:pointer;}
 .runBtn:disabled{opacity:.5;}
 
+/* ==================== TAB BAR ==================== */
+#tabBar{
+  flex:0 0 auto;display:flex;overflow-x:auto;overflow-y:hidden;
+  background:var(--panel);border-bottom:1px solid var(--line);
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;
+}
+#tabBar::-webkit-scrollbar{display:none;}
+.tab{
+  flex:0 0 auto;display:flex;align-items:center;gap:8px;
+  padding:8px 14px;font-size:13px;color:var(--muted);
+  background:var(--panel);border-right:1px solid var(--line);
+  cursor:pointer;white-space:nowrap;user-select:none;-webkit-user-select:none;
+  position:relative;
+}
+.tab.active{background:var(--bg);color:var(--text);}
+.tab.active::after{content:"";position:absolute;left:0;right:0;bottom:-1px;
+  height:1px;background:var(--bg);}
+.tab.active::before{content:"";position:absolute;left:0;right:0;top:0;
+  height:2px;background:var(--accent);}
+.tab .tabClose{opacity:.4;font-size:16px;line-height:1;padding:0 2px;border-radius:3px;}
+.tab .tabClose:hover{opacity:1;background:var(--tab-close-hover);}
+.tabAdd{flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+  min-width:40px;font-size:20px;color:var(--muted);
+  background:var(--panel);cursor:pointer;}
+.tabAdd:active{background:var(--panel2);}
+
+/* ==================== EDITOR WRAP ==================== */
 #editorWrap{flex:1 1 auto;min-height:0;position:relative;background:var(--bg);}
 
-/* ---- gutter (NEW) ---- */
 #gutter{
   position:absolute;left:0;top:0;bottom:0;width:46px;
-  overflow:hidden;z-index:3;background:#1e1e1e;
-  border-right:1px solid #2a2a2a;
+  overflow:hidden;z-index:3;background:var(--gutter-bg);
+  border-right:1px solid var(--gutter-border);
   pointer-events:none;user-select:none;-webkit-user-select:none;
 }
 #gutterInner{
   margin:0;padding:12px 8px 12px 0;text-align:right;
   font-family:ui-monospace,Menlo,Consolas,monospace;
-  font-size:var(--fs);line-height:1.5;color:#6e7681;
+  font-size:var(--fs);line-height:1.5;color:var(--gutter-fg);
   white-space:pre;will-change:transform;
 }
 
 #highlight,#editor{
   position:absolute;inset:0;margin:0;border:0;border-radius:0;
-  padding:12px 14px 12px 60px;              /* <-- left padded for gutter */
+  padding:12px 14px 12px 60px;
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
   font-size:var(--fs);line-height:1.5;letter-spacing:0;
   tab-size:4;-moz-tab-size:4;white-space:pre;
@@ -85,6 +137,7 @@ body{
 .op {color:var(--syn-default);} .dec{color:var(--syn-function);}
 .bi {color:var(--syn-function);}
 
+/* ==================== CHIP BARS ==================== */
 #suggestBar{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:5px;padding:6px 8px;
   background:var(--panel);border-top:1px solid var(--line);
   max-height:88px;overflow-y:auto;-webkit-overflow-scrolling:touch;
@@ -100,14 +153,15 @@ body{
   background:var(--panel2);border:1px solid var(--line);color:var(--text);
   font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;
   cursor:pointer;user-select:none;-webkit-user-select:none;white-space:nowrap;}
-#symbolBar .chip{background:#2a2d2e;}
+#symbolBar .chip{background:var(--sym-bg);}
 .chip:active{background:var(--btn);color:#fff;border-color:var(--btn);}
 .chip.kw {color:var(--syn-keyword);} .chip.bi{color:var(--syn-function);}
 .chip.mod{color:var(--syn-class);} .chip.usr{color:var(--syn-variable);}
 .chip.mth{color:var(--syn-variable);}
 
+/* ==================== OUTPUT SHEET ==================== */
 #sheet{position:absolute;left:0;right:0;bottom:0;height:58%;
-  background:#181818;border-top:1px solid var(--line);
+  background:var(--sheet-bg);border-top:1px solid var(--line);
   transform:translateY(105%);transition:transform .22s ease;
   display:flex;flex-direction:column;z-index:60;
   border-radius:10px 10px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.65);}
@@ -122,7 +176,7 @@ body{
 .smallBtn:active{background:var(--btn);color:#fff;}
 #output{flex:1;margin:0;padding:10px 14px;overflow:auto;
   font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.5;
-  white-space:pre-wrap;word-break:break-word;color:#cccccc;
+  white-space:pre-wrap;word-break:break-word;color:var(--output-fg);
   -webkit-overflow-scrolling:touch;}
 #output .err{color:#f48771;} #output .info{color:var(--muted);}
 
@@ -130,6 +184,7 @@ body{
   pointer-events:none;transition:opacity .22s;z-index:55;}
 #scrim.show{opacity:1;pointer-events:auto;}
 
+/* ==================== MODAL ==================== */
 #modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
   z-index:200;padding:16px;background:rgba(0,0,0,.7);}
 #modal.open{display:flex;}
@@ -141,10 +196,19 @@ body{
 .mItem:active{background:var(--panel2);}
 .mHead{padding:14px 14px 6px;font-size:11px;text-transform:uppercase;
   letter-spacing:.8px;color:var(--muted);font-weight:700;}
-.mText{padding:4px 14px 14px;font-size:13.5px;line-height:1.6;color:#b9c2d6;}
+.mText{padding:4px 14px 14px;font-size:13.5px;line-height:1.6;color:var(--muted);}
 .mText code{background:var(--panel2);padding:1px 5px;border-radius:3px;
   font-size:12.5px;color:var(--syn-string);}
 </style>
+<script>
+/* Set theme before body renders to avoid a flash */
+(function(){
+  try {
+    var t = localStorage.getItem('pyphone.theme.v1') || 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+  } catch(e){}
+})();
+</script>
 </head>
 <body>
 
@@ -157,6 +221,8 @@ body{
       <button id="btnRun" class="runBtn">▶ Run</button>
     </div>
   </header>
+
+  <div id="tabBar"></div>
 
   <main id="editorWrap">
     <div id="gutter"><pre id="gutterInner"></pre></div>
@@ -188,7 +254,7 @@ body{
 <script>
 "use strict";
 
-/* ================= DATA ================= */
+/* ==================== DATA ==================== */
 const PY_KEYWORDS_BLUE = new Set(['def','class','lambda','global','nonlocal',
   'del','assert','pass','async','await','and','or','not','in','is','True',
   'False','None','self','cls']);
@@ -339,10 +405,9 @@ print(d.speak())
 `,
 };
 
-/* ================= DOM ================= */
+/* ==================== DOM ==================== */
 const editor      = document.getElementById('editor');
 const highlightEl = document.getElementById('highlight');
-const gutter      = document.getElementById('gutter');
 const gutterInner = document.getElementById('gutterInner');
 const suggestBar  = document.getElementById('suggestBar');
 const symbolBar   = document.getElementById('symbolBar');
@@ -354,10 +419,13 @@ const modalCard   = document.getElementById('modalCard');
 const btnRun      = document.getElementById('btnRun');
 const fileInput   = document.getElementById('fileInput');
 
-const STORE_CODE = 'pyphone.code.v3';
-const STORE_FONT = 'pyphone.font.v3';
+const STORE_FILES  = 'pyphone.files.v4';
+const STORE_ACTIVE = 'pyphone.active.v4';
+const STORE_FONT   = 'pyphone.font.v4';
+const STORE_THEME  = 'pyphone.theme.v1';
+const STORE_LEGACY = 'pyphone.code.v3';
 
-/* ================= VIEWPORT ================= */
+/* ==================== VIEWPORT ==================== */
 function updateViewport(){
   const vv = window.visualViewport;
   if (!vv) return;
@@ -373,7 +441,7 @@ if (window.visualViewport){
 window.addEventListener('orientationchange', () => setTimeout(updateViewport, 250));
 updateViewport();
 
-/* ================= HIGHLIGHTER ================= */
+/* ==================== HIGHLIGHTER ==================== */
 function esc(s){
   return s.replace(/[&<>]/g, c => c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;');
 }
@@ -436,7 +504,7 @@ function highlightPython(code){
   return html;
 }
 
-/* ================= GUTTER + HIGHLIGHT SYNC ================= */
+/* ==================== GUTTER + HIGHLIGHT ==================== */
 let lastLineCount = -1;
 let hlQueued = false;
 
@@ -472,37 +540,49 @@ editor.addEventListener('scroll', () => {
   gutterInner.style.transform = 'translateY(' + (-editor.scrollTop) + 'px)';
 }, { passive:true });
 
-/* ================= EDITOR PRIMITIVES ================= */
+/* ==================== EDITOR PRIMITIVES ==================== */
+let suppressAutoClose = false;
+
 function focusEditor(){
   if (document.activeElement !== editor) editor.focus({ preventScroll:true });
 }
 function insertRaw(text, caretOffset){
-  focusEditor();
-  const start = editor.selectionStart;
-  let ok = false;
-  try { ok = document.execCommand('insertText', false, text); } catch(e){ ok = false; }
-  if (!ok){
-    const v = editor.value, e = editor.selectionEnd;
-    editor.value = v.slice(0, start) + text + v.slice(e);
-    editor.setSelectionRange(start + text.length, start + text.length);
-  }
-  if (caretOffset !== undefined){
-    const p = start + caretOffset;
-    try { editor.setSelectionRange(p, p); } catch(e){}
+  suppressAutoClose = true;
+  try {
+    focusEditor();
+    const start = editor.selectionStart;
+    let ok = false;
+    try { ok = document.execCommand('insertText', false, text); } catch(e){ ok = false; }
+    if (!ok){
+      const v = editor.value, e = editor.selectionEnd;
+      editor.value = v.slice(0, start) + text + v.slice(e);
+      editor.setSelectionRange(start + text.length, start + text.length);
+    }
+    if (caretOffset !== undefined){
+      const p = start + caretOffset;
+      try { editor.setSelectionRange(p, p); } catch(e){}
+    }
+  } finally {
+    suppressAutoClose = false;
   }
   onEditorChange();
 }
 function replaceRange(start, end, text, caretOffset){
-  focusEditor();
-  try { editor.setSelectionRange(start, end); } catch(e){}
-  let ok = false;
-  try { ok = document.execCommand('insertText', false, text); } catch(e){ ok = false; }
-  if (!ok){
-    const v = editor.value;
-    editor.value = v.slice(0, start) + text + v.slice(end);
+  suppressAutoClose = true;
+  try {
+    focusEditor();
+    try { editor.setSelectionRange(start, end); } catch(e){}
+    let ok = false;
+    try { ok = document.execCommand('insertText', false, text); } catch(e){ ok = false; }
+    if (!ok){
+      const v = editor.value;
+      editor.value = v.slice(0, start) + text + v.slice(end);
+    }
+    const p = start + (caretOffset === undefined ? text.length : caretOffset);
+    try { editor.setSelectionRange(p, p); } catch(e){}
+  } finally {
+    suppressAutoClose = false;
   }
-  const p = start + (caretOffset === undefined ? text.length : caretOffset);
-  try { editor.setSelectionRange(p, p); } catch(e){}
   onEditorChange();
 }
 function insertSnippet(snippet){
@@ -536,7 +616,7 @@ function unindent(){
   onEditorChange();
 }
 
-/* ================= AUTO-INDENT + TAB ================= */
+/* ==================== KEYBOARD: AUTO-INDENT + TAB + RUN ==================== */
 editor.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey){
     e.preventDefault();
@@ -554,7 +634,98 @@ editor.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); runCode(); }
 });
 
-/* ================= SUGGESTIONS ================= */
+/* ==================== BRACKET AUTO-CLOSE ==================== */
+const PAIRS   = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'" };
+const CLOSERS = new Set([')', ']', '}', '"', "'"]);
+
+editor.addEventListener('beforeinput', (e) => {
+  if (suppressAutoClose) return;
+
+  if (e.inputType === 'insertText' && e.data && e.data.length === 1){
+    const ch = e.data;
+    const pos = editor.selectionStart;
+    const end = editor.selectionEnd;
+
+    /* Skip over a closing char if the next char is already that char */
+    if (CLOSERS.has(ch) && pos === end && editor.value[pos] === ch){
+      e.preventDefault();
+      insertRaw('');
+      editor.setSelectionRange(pos + 1, pos + 1);
+      onEditorChange();
+      return;
+    }
+
+    if (PAIRS[ch]){
+      /* If the next char is already the closing char, just move past it */
+      if (editor.value[pos] === PAIRS[ch] && pos === end){
+        e.preventDefault();
+        insertRaw('');
+        editor.setSelectionRange(pos + 1, pos + 1);
+        onEditorChange();
+        return;
+      }
+
+      /* Don't auto-close quotes immediately after a word char */
+      if ((ch === '"' || ch === "'") && pos > 0){
+        const prev = editor.value[pos - 1];
+        if (/[A-Za-z0-9_]/.test(prev)) return;
+      }
+
+      /* Wrap a selection */
+      if (pos !== end){
+        e.preventDefault();
+        const sel = editor.value.slice(pos, end);
+        replaceRange(pos, end, ch + sel + PAIRS[ch], 1 + sel.length);
+        return;
+      }
+
+      e.preventDefault();
+      insertRaw(ch + PAIRS[ch], 1);
+      return;
+    }
+  }
+
+  if (e.inputType === 'deleteContentBackward'){
+    const pos = editor.selectionStart;
+    const end = editor.selectionEnd;
+    if (pos !== end || pos === 0) return;
+    const prev = editor.value[pos - 1];
+    const next = editor.value[pos];
+    if (PAIRS[prev] && PAIRS[prev] === next){
+      e.preventDefault();
+      replaceRange(pos - 1, pos + 1, '', 0);
+      return;
+    }
+  }
+});
+
+/* ==================== FUZZY MATCH ==================== */
+function fuzzyScore(query, target){
+  if (!query) return 1;
+  const q = query.toLowerCase();
+  const t = target.toLowerCase();
+  if (t.startsWith(q)) return 1000 - target.length;
+
+  let qi = 0, score = 0, lastMatch = -1;
+  for (let i = 0; i < t.length && qi < q.length; i++){
+    if (t[i] !== q[qi]) continue;
+    if (lastMatch === i - 1) score += 15;
+    if (i === 0 ||
+        target[i - 1] === '_' ||
+        (target[i] === target[i].toUpperCase() &&
+         target[i] !== target[i].toLowerCase() &&
+         target[i - 1] !== target[i - 1].toUpperCase())){
+      score += 8;
+    }
+    score += Math.max(0, 6 - i);
+    lastMatch = i;
+    qi++;
+  }
+  if (qi < q.length) return -1;
+  return score - target.length * 0.1;
+}
+
+/* ==================== SUGGESTIONS ==================== */
 function currentContext(){
   const pos = editor.selectionStart;
   if (pos !== editor.selectionEnd) return { mode:'none' };
@@ -600,30 +771,44 @@ function renderSuggestions(){
   const frag = document.createDocumentFragment();
   let made = 0;
   const MAX = 50;
+
   if (ctx.mode === 'attr'){
     const w = ctx.word.toLowerCase();
-    for (const m of PY_METHODS){
+    const scored = PY_METHODS
+      .map(m => ({ name: m, score: fuzzyScore(w, m) }))
+      .filter(x => x.score >= 0)
+      .sort((a, b) => b.score - a.score);
+    const seen = new Set();
+    for (const { name } of scored){
       if (made >= MAX) break;
-      if (!m.toLowerCase().startsWith(w) || m === ctx.word) continue;
-      const ins = m + '()';
+      if (seen.has(name)) continue;
+      if (name.toLowerCase() === w) continue;
+      seen.add(name);
+      const ins = name + '()';
       frag.appendChild(makeChip(ins, 'mth', () => {
-        replaceRange(ctx.start, ctx.start + ctx.word.length, ins, m.length + 1);
+        replaceRange(ctx.start, ctx.start + ctx.word.length, ins, name.length + 1);
       }));
       made++;
     }
   } else if (ctx.mode === 'word'){
     const w = ctx.word.toLowerCase();
     const pool = [];
-    PY_KEYWORDS_BLUE.forEach(k => pool.push([k,'kw']));
-    PY_KEYWORDS_PURPLE.forEach(k => pool.push([k,'cf']));
-    PY_BUILTINS_SET.forEach(k => pool.push([k,'bi']));
-    PY_MODULES.forEach(k => pool.push([k,'mod']));
-    getUserNames().forEach(k => pool.push([k,'usr']));
+    PY_KEYWORDS_BLUE.forEach(k => pool.push([k, 'kw']));
+    PY_KEYWORDS_PURPLE.forEach(k => pool.push([k, 'cf']));
+    PY_BUILTINS_SET.forEach(k => pool.push([k, 'bi']));
+    PY_MODULES.forEach(k => pool.push([k, 'mod']));
+    getUserNames().forEach(k => pool.push([k, 'usr']));
+
+    const scored = pool
+      .map(([name, cls]) => ({ name, cls, score: fuzzyScore(w, name) }))
+      .filter(x => x.score >= 0)
+      .sort((a, b) => b.score - a.score);
+
     const seen = new Set();
-    for (const [name, cls] of pool){
+    for (const { name, cls } of scored){
       if (made >= MAX) break;
-      const low = name.toLowerCase();
-      if (low === w || !low.startsWith(w) || seen.has(name)) continue;
+      if (seen.has(name)) continue;
+      if (name.toLowerCase() === w) continue;
       seen.add(name);
       frag.appendChild(makeChip(name, cls, () => {
         replaceRange(ctx.start, ctx.start + ctx.word.length, name, name.length);
@@ -639,7 +824,7 @@ function renderSuggestions(){
   suggestBar.appendChild(frag);
 }
 
-/* ================= SYMBOL BAR ================= */
+/* ==================== SYMBOL BAR ==================== */
 function handleSymbol(s){
   if (s.a === 'indent') return indent();
   if (s.a === 'unindent') return unindent();
@@ -668,14 +853,142 @@ function buildSymbolBar(){
   symbolBar.appendChild(frag);
 }
 
-/* ================= CHANGE + PERSIST ================= */
+/* ==================== FILES + TABS ==================== */
+let files = [];
+let activeId = null;
+
+function uid(){ return Math.random().toString(36).slice(2, 10); }
+function activeFile(){
+  return files.find(f => f.id === activeId) || files[0];
+}
+
+function loadFiles(){
+  let loaded = null, active = null;
+  try {
+    loaded = JSON.parse(localStorage.getItem(STORE_FILES) || 'null');
+    active = localStorage.getItem(STORE_ACTIVE);
+  } catch(e){}
+
+  if (Array.isArray(loaded) && loaded.length){
+    files = loaded;
+    activeId = files.some(f => f.id === active) ? active : files[0].id;
+  } else {
+    let old = null;
+    try { old = localStorage.getItem(STORE_LEGACY); } catch(e){}
+    files = [{ id: uid(), name: 'main.py', code: old || DEFAULT_CODE }];
+    activeId = files[0].id;
+  }
+}
+
 let saveTimer = null;
 function persist(){
+  const f = activeFile();
+  if (f) f.code = editor.value;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    try { localStorage.setItem(STORE_CODE, editor.value); } catch(e){}
+    try {
+      localStorage.setItem(STORE_FILES, JSON.stringify(files));
+      localStorage.setItem(STORE_ACTIVE, activeId || '');
+    } catch(e){}
   }, 400);
 }
+
+function renderTabs(){
+  const bar = document.getElementById('tabBar');
+  bar.textContent = '';
+  for (const f of files){
+    const tab = document.createElement('div');
+    tab.className = 'tab' + (f.id === activeId ? ' active' : '');
+    const name = document.createElement('span');
+    name.textContent = f.name;
+    tab.appendChild(name);
+
+    if (files.length > 1){
+      const close = document.createElement('span');
+      close.className = 'tabClose';
+      close.textContent = '\u00d7';
+      close.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeTab(f.id);
+      });
+      tab.appendChild(close);
+    }
+    tab.addEventListener('click', () => switchTab(f.id));
+    bar.appendChild(tab);
+  }
+  const add = document.createElement('div');
+  add.className = 'tabAdd';
+  add.textContent = '+';
+  add.addEventListener('click', newTab);
+  bar.appendChild(add);
+}
+
+function switchTab(id){
+  if (id === activeId) return;
+  const f = activeFile();
+  if (f) f.code = editor.value;
+  activeId = id;
+  editor.value = activeFile().code;
+  editor.scrollTop = 0;
+  lastLineCount = -1;
+  scheduleHighlight();
+  scheduleRender();
+  renderTabs();
+  persist();
+}
+
+function newTab(){
+  const f = activeFile();
+  if (f) f.code = editor.value;
+  const n = files.length + 1;
+  const nf = { id: uid(), name: 'script' + n + '.py', code: '' };
+  files.push(nf);
+  activeId = nf.id;
+  editor.value = '';
+  lastLineCount = -1;
+  scheduleHighlight();
+  scheduleRender();
+  renderTabs();
+  persist();
+  focusEditor();
+}
+
+function closeTab(id){
+  if (files.length <= 1) return;
+  const idx = files.findIndex(f => f.id === id);
+  if (idx === -1) return;
+  if (files[idx].code.trim() && !confirm('Close "' + files[idx].name + '"?')) return;
+  files.splice(idx, 1);
+  if (activeId === id){
+    const next = files[Math.min(idx, files.length - 1)];
+    activeId = next.id;
+    editor.value = next.code;
+    lastLineCount = -1;
+    scheduleHighlight();
+    scheduleRender();
+  }
+  renderTabs();
+  persist();
+}
+
+function renameActiveTab(){
+  const f = activeFile();
+  if (!f) return;
+  const name = prompt('File name:', f.name);
+  if (!name || !name.trim()) return;
+  f.name = name.trim();
+  renderTabs();
+  persist();
+}
+
+function clearCurrentFile(){
+  if (editor.value.trim() && !confirm('Clear the current file?')) return;
+  editor.value = '';
+  onEditorChange();
+  focusEditor();
+}
+
+/* ==================== CHANGE HANDLER ==================== */
 function onEditorChange(){
   scheduleHighlight();
   scheduleRender();
@@ -688,7 +1001,7 @@ editor.addEventListener('keyup', (e) => {
     scheduleRender();
 });
 
-/* ================= OUTPUT SHEET ================= */
+/* ==================== OUTPUT SHEET ==================== */
 function openSheet(){ sheet.classList.add('open'); scrim.classList.add('show'); }
 function closeSheet(){ sheet.classList.remove('open'); scrim.classList.remove('show'); }
 scrim.addEventListener('click', closeSheet);
@@ -704,7 +1017,7 @@ function appendOut(text, cls){
 }
 function clearOutput(){ outputEl.textContent = ''; }
 
-/* ================= PYODIDE RUNNER ================= */
+/* ==================== PYODIDE RUNNER ==================== */
 let pyodide = null, pyLoading = null, running = false;
 const PYODIDE_VERSION = '0.26.2';
 const PYODIDE_BASE = 'https://cdn.jsdelivr.net/pyodide/v' + PYODIDE_VERSION + '/full/';
@@ -766,7 +1079,36 @@ document.getElementById('btnKeyboard').addEventListener('click', () => {
   editor.blur(); window.scrollTo(0, 0);
 });
 
-/* ================= MENU / MODAL ================= */
+/* ==================== THEME ==================== */
+function applyTheme(){
+  const t = localStorage.getItem(STORE_THEME) || 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = t === 'dark' ? '#1e1e1e' : '#ffffff';
+}
+function toggleTheme(){
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = cur === 'dark' ? 'light' : 'dark';
+  localStorage.setItem(STORE_THEME, next);
+  applyTheme();
+}
+
+/* ==================== FONT ==================== */
+function applyFont(){
+  const fs = parseInt(localStorage.getItem(STORE_FONT) || '16', 10);
+  const safe = Math.max(16, isNaN(fs) ? 16 : fs);
+  document.documentElement.style.setProperty('--fs', safe + 'px');
+}
+function cycleFont(){
+  const sizes = [16, 17, 18, 20, 22];
+  let cur = parseInt(localStorage.getItem(STORE_FONT) || '16', 10);
+  let idx = sizes.indexOf(cur); if (idx === -1) idx = 0;
+  const next = sizes[(idx + 1) % sizes.length];
+  localStorage.setItem(STORE_FONT, String(next));
+  applyFont();
+}
+
+/* ==================== MENU / MODAL ==================== */
 function openModal(builder){ modalCard.textContent = ''; builder(modalCard); modal.classList.add('open'); }
 function closeModal(){ modal.classList.remove('open'); }
 modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
@@ -783,11 +1125,14 @@ function menuHead(text){
 }
 function showMenu(){
   openModal((card) => {
-    card.appendChild(menuItem('📄  New file', newFile));
+    card.appendChild(menuItem('➕  New tab', newTab));
+    card.appendChild(menuItem('✏️  Rename current tab', renameActiveTab));
+    card.appendChild(menuItem('🧹  Clear current file', clearCurrentFile));
     card.appendChild(menuItem('📂  Open a .py file', () => fileInput.click()));
-    card.appendChild(menuItem('💾  Download .py', downloadPy));
+    card.appendChild(menuItem('💾  Download current .py', downloadPy));
     card.appendChild(menuItem('🧹  Clear output', clearOutput));
     card.appendChild(menuItem('♻️  Restart Python', restartPython));
+    card.appendChild(menuItem('🌗  Toggle light / dark theme', toggleTheme));
     card.appendChild(menuItem('🔠  Cycle editor font size', cycleFont));
     card.appendChild(menuHead('Examples'));
     for (const name of Object.keys(EXAMPLES))
@@ -796,27 +1141,39 @@ function showMenu(){
     card.appendChild(menuItem('ℹ️  How to use', showHelp));
   });
 }
-function newFile(){
-  if (editor.value.trim() && !confirm('Clear the editor?')) return;
-  editor.value = ''; onEditorChange(); focusEditor();
-}
 function loadExample(name){
   const code = EXAMPLES[name]; if (!code) return;
-  if (editor.value.trim() && !confirm('Load "' + name + '"?')) return;
-  editor.value = code; onEditorChange(); editor.scrollTop = 0;
+  const f = activeFile();
+  if (f && editor.value.trim() && !confirm('Replace "' + f.name + '" with the "' + name + '" example?')) return;
+  editor.value = code;
+  onEditorChange();
+  editor.scrollTop = 0;
 }
 function downloadPy(){
+  const f = activeFile();
+  const filename = (f && f.name) ? f.name : 'script.py';
   const blob = new Blob([editor.value], { type:'text/x-python' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = 'script.py';
+  a.href = url; a.download = filename;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 fileInput.addEventListener('change', () => {
   const f = fileInput.files && fileInput.files[0]; if (!f) return;
   const r = new FileReader();
-  r.onload = () => { editor.value = String(r.result || ''); onEditorChange(); editor.scrollTop = 0; };
+  r.onload = () => {
+    const nf = { id: uid(), name: f.name || 'imported.py', code: String(r.result || '') };
+    files.push(nf);
+    activeId = nf.id;
+    editor.value = nf.code;
+    lastLineCount = -1;
+    scheduleHighlight();
+    scheduleRender();
+    renderTabs();
+    persist();
+    editor.scrollTop = 0;
+  };
   r.readAsText(f); fileInput.value = '';
 });
 async function restartPython(){
@@ -832,19 +1189,6 @@ async function restartPython(){
     appendOut('Python state cleared.\n', 'info');
   } catch(e){ appendOut(String(e.message || e) + '\n', 'err'); }
 }
-function cycleFont(){
-  const sizes = [16, 17, 18, 20, 22];
-  let cur = parseInt(localStorage.getItem(STORE_FONT) || '16', 10);
-  let idx = sizes.indexOf(cur); if (idx === -1) idx = 0;
-  const next = sizes[(idx + 1) % sizes.length];
-  localStorage.setItem(STORE_FONT, String(next));
-  applyFont();
-}
-function applyFont(){
-  const fs = parseInt(localStorage.getItem(STORE_FONT) || '16', 10);
-  const safe = Math.max(16, isNaN(fs) ? 16 : fs);
-  document.documentElement.style.setProperty('--fs', safe + 'px');
-}
 function showHelp(){
   openModal((card) => {
     card.appendChild(menuHead('How to use PyPhone'));
@@ -853,16 +1197,18 @@ function showHelp(){
     body.innerHTML =
       '<p><b>▶ Run</b> executes real CPython via WebAssembly. First run ' +
       'downloads ~10 MB; after that it is cached and works offline.</p>' +
+      '<p><b>Tabs:</b> tap <b>+</b> to open a new file, tap a tab to switch, ' +
+      'tap × to close. Everything auto-saves.</p>' +
       '<p><b>Type faster:</b><br>' +
       '• Suggestions appear as you type — tap to insert.<br>' +
       '• Not mid-word? The bar shows ready-made snippets.<br>' +
       '• Tap <code>.</code> after a value to see its methods.<br>' +
       '• <code>⇥</code> indents, <code>⇤</code> unindents.<br>' +
-      '• <code>(</code> inserts <code>()</code> and puts the cursor inside.</p>' +
+      '• Type <code>(</code> — it inserts <code>()</code> for you.</p>' +
       '<p><b>Auto-indent:</b> Enter after a line ending in <code>:</code> ' +
       'indents automatically.</p>' +
       '<p><b>Shortcut:</b> Ctrl/Cmd + Enter runs the code.</p>' +
-      '<p>Code is auto-saved in this browser. Use ☰ → <i>Download .py</i> ' +
+      '<p>Code is auto-saved in this browser. Use ☰ → <i>Download</i> ' +
       'to export.</p>';
     card.appendChild(body);
     card.appendChild(menuItem('Close', () => {}));
@@ -870,13 +1216,14 @@ function showHelp(){
 }
 document.getElementById('btnMenu').addEventListener('click', showMenu);
 
-/* ================= INIT ================= */
+/* ==================== INIT ==================== */
 (function init(){
+  applyTheme();
   applyFont();
   buildSymbolBar();
-  let saved = null;
-  try { saved = localStorage.getItem(STORE_CODE); } catch(e){}
-  editor.value = (saved && saved.length) ? saved : DEFAULT_CODE;
+  loadFiles();
+  editor.value = activeFile().code;
+  renderTabs();
   scheduleHighlight();
   renderSuggestions();
   updateViewport();
@@ -885,10 +1232,15 @@ document.getElementById('btnMenu').addEventListener('click', showMenu);
 })();
 
 window.addEventListener('beforeunload', () => {
-  try { localStorage.setItem(STORE_CODE, editor.value); } catch(e){}
+  const f = activeFile();
+  if (f) f.code = editor.value;
+  try {
+    localStorage.setItem(STORE_FILES, JSON.stringify(files));
+    localStorage.setItem(STORE_ACTIVE, activeId || '');
+  } catch(e){}
 });
 
-/* ================= SERVICE WORKER ================= */
+/* ==================== SERVICE WORKER ==================== */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js', { scope: './' })
