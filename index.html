@@ -985,6 +985,14 @@ document.getElementById('btnMenu').addEventListener('click', showMenu);
 window.addEventListener('beforeunload', () => {
   try { localStorage.setItem(STORE_CODE, editor.value); } catch(e){}
 });
+  /* ---- register service worker ---- */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js', { scope: './' })
+      .then(() => console.log('[PyPhone] Service worker active — offline ready.'))
+      .catch((err) => console.warn('[PyPhone] SW registration failed:', err));
+  });
+}
 </script>
 </body>
 </html>
