@@ -2,6 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com;
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' data: blob:;
+  font-src 'self';
+  connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com;
+  worker-src 'self' blob:;
+  frame-ancestors 'none';
+  base-uri 'self';
+  form-action 'none';
+  object-src 'none';
+">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1e1e1e">
 <meta name="apple-mobile-web-app-capable" content="yes">
