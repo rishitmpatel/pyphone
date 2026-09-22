@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,36 +9,15 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>PyPhone — Python</title>
 <style>
-/* ===== VS Code Dark+ palette ===== */
 :root{
-  --bg:#1e1e1e;         /* editor background      */
-  --panel:#252526;      /* sidebar / tab bar      */
-  --panel2:#2d2d2d;     /* hover / inactive tab   */
-  --line:#3c3c3c;       /* borders                */
-  --text:#d4d4d4;
-  --muted:#858585;
-  --accent:#007acc;     /* status bar blue        */
-  --btn:#0e639c;        /* VS Code button         */
-  --btn-h:#1177bb;
-  --run:#2ea043;        /* run button             */
-
-  /* syntax tokens */
-  --syn-default:#d4d4d4;
-  --syn-comment:#6a9955;
-  --syn-string:#ce9178;
-  --syn-number:#b5cea8;
-  --syn-keyword:#569cd6;   /* def, class, True, and  */
-  --syn-control:#c586c0;   /* if, for, return, import*/
-  --syn-function:#dcdcaa;  /* function names, print  */
-  --syn-class:#4ec9b0;     /* class names, modules   */
-  --syn-variable:#9cdcfe;
-  --syn-operator:#d4d4d4;
-  --syn-decorator:#dcdcaa;
+  --bg:#1e1e1e; --panel:#252526; --panel2:#2d2d2d; --line:#3c3c3c;
+  --text:#d4d4d4; --muted:#858585; --accent:#007acc;
+  --btn:#0e639c; --run:#2ea043;
+  --syn-default:#d4d4d4; --syn-comment:#6a9955; --syn-string:#ce9178;
+  --syn-number:#b5cea8; --syn-keyword:#569cd6; --syn-control:#c586c0;
+  --syn-function:#dcdcaa; --syn-class:#4ec9b0; --syn-variable:#9cdcfe;
   --caret:#aeafad;
-
-  --fs:16px;
-  --vvh:100dvh;
-  --vvt:0px;
+  --fs:16px; --vvh:100dvh; --vvt:0px;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--bg);}
@@ -46,159 +26,114 @@ body{
   color:var(--text);font-size:15px;
   position:fixed;inset:0;overscroll-behavior:none;
 }
-#app{
-  position:fixed;left:0;right:0;top:var(--vvt);height:var(--vvh);
-  display:flex;flex-direction:column;background:var(--bg);
-}
-
-/* ---------- top bar ---------- */
-#topbar{
-  flex:0 0 auto;height:50px;display:flex;align-items:center;
+#app{position:fixed;left:0;right:0;top:var(--vvt);height:var(--vvh);
+  display:flex;flex-direction:column;background:var(--bg);}
+#topbar{flex:0 0 auto;height:50px;display:flex;align-items:center;
   justify-content:space-between;padding:0 8px 0 12px;
-  background:var(--panel);border-bottom:1px solid var(--line);
-}
-#brand{font-weight:600;font-size:15px;letter-spacing:.2px;color:#cccccc;}
+  background:var(--panel);border-bottom:1px solid var(--line);}
+#brand{font-weight:600;font-size:15px;color:#cccccc;}
 #brand em{font-style:normal;color:var(--syn-keyword);}
 #topActions{display:flex;align-items:center;gap:6px;}
-.iconBtn{
-  background:var(--panel2);border:1px solid var(--line);color:var(--text);
-  width:40px;height:34px;border-radius:6px;font-size:16px;cursor:pointer;padding:0;
-}
+.iconBtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);
+  width:40px;height:34px;border-radius:6px;font-size:16px;cursor:pointer;padding:0;}
 .iconBtn:active{background:var(--btn);color:#fff;}
-.runBtn{
-  background:var(--run);color:#fff;border:none;font-weight:600;
-  height:34px;padding:0 16px;border-radius:6px;font-size:14px;cursor:pointer;
-}
+.runBtn{background:var(--run);color:#fff;border:none;font-weight:600;
+  height:34px;padding:0 16px;border-radius:6px;font-size:14px;cursor:pointer;}
 .runBtn:disabled{opacity:.5;}
 
-/* ---------- editor with highlight overlay ---------- */
-#editorWrap{
-  flex:1 1 auto;min-height:0;position:relative;background:var(--bg);
+#editorWrap{flex:1 1 auto;min-height:0;position:relative;background:var(--bg);}
+
+/* ---- gutter (NEW) ---- */
+#gutter{
+  position:absolute;left:0;top:0;bottom:0;width:46px;
+  overflow:hidden;z-index:3;background:#1e1e1e;
+  border-right:1px solid #2a2a2a;
+  pointer-events:none;user-select:none;-webkit-user-select:none;
 }
+#gutterInner{
+  margin:0;padding:12px 8px 12px 0;text-align:right;
+  font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:var(--fs);line-height:1.5;color:#6e7681;
+  white-space:pre;will-change:transform;
+}
+
 #highlight,#editor{
   position:absolute;inset:0;margin:0;border:0;border-radius:0;
-  padding:12px 14px;
+  padding:12px 14px 12px 60px;              /* <-- left padded for gutter */
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
-  font-size:var(--fs);
-  line-height:1.5;
-  letter-spacing:0;
-  tab-size:4;-moz-tab-size:4;
-  white-space:pre;
+  font-size:var(--fs);line-height:1.5;letter-spacing:0;
+  tab-size:4;-moz-tab-size:4;white-space:pre;
   word-wrap:normal;overflow-wrap:normal;
 }
-#highlight{
-  z-index:1;overflow:hidden;pointer-events:none;
-  color:var(--syn-default);background:var(--bg);
-}
-#editor{
-  z-index:2;overflow:auto;resize:none;outline:none;
-  background:transparent;
-  color:transparent;
-  -webkit-text-fill-color:transparent;
-  caret-color:var(--caret);
-  -webkit-appearance:none;appearance:none;
-  -webkit-overflow-scrolling:touch;
-}
-#editor::selection{
-  background:rgba(38,79,120,.7);
-  color:transparent;
-  -webkit-text-fill-color:transparent;
-}
+#highlight{z-index:1;overflow:hidden;pointer-events:none;
+  color:var(--syn-default);background:var(--bg);}
+#editor{z-index:2;overflow:auto;resize:none;outline:none;
+  background:transparent;color:transparent;
+  -webkit-text-fill-color:transparent;caret-color:var(--caret);
+  -webkit-appearance:none;appearance:none;-webkit-overflow-scrolling:touch;}
+#editor::selection{background:rgba(38,79,120,.7);color:transparent;
+  -webkit-text-fill-color:transparent;}
 
-/* syntax spans */
-.com{color:var(--syn-comment);}
-.str{color:var(--syn-string);}
-.num{color:var(--syn-number);}
-.kw {color:var(--syn-keyword);}
-.cf {color:var(--syn-control);}
-.fn {color:var(--syn-function);}
-.cls{color:var(--syn-class);}
-.var{color:var(--syn-variable);}
-.op {color:var(--syn-operator);}
-.dec{color:var(--syn-decorator);}
+.com{color:var(--syn-comment);} .str{color:var(--syn-string);}
+.num{color:var(--syn-number);}  .kw {color:var(--syn-keyword);}
+.cf {color:var(--syn-control);} .fn {color:var(--syn-function);}
+.cls{color:var(--syn-class);}   .var{color:var(--syn-variable);}
+.op {color:var(--syn-default);} .dec{color:var(--syn-function);}
 .bi {color:var(--syn-function);}
 
-/* ---------- suggestion + symbol bars ---------- */
-#suggestBar{
-  flex:0 0 auto;display:flex;flex-wrap:wrap;gap:5px;padding:6px 8px;
+#suggestBar{flex:0 0 auto;display:flex;flex-wrap:wrap;gap:5px;padding:6px 8px;
   background:var(--panel);border-top:1px solid var(--line);
   max-height:88px;overflow-y:auto;-webkit-overflow-scrolling:touch;
-  align-content:flex-start;
-}
-#symbolBar{
-  flex:0 0 auto;display:flex;gap:5px;padding:6px 8px;
+  align-content:flex-start;}
+#symbolBar{flex:0 0 auto;display:flex;gap:5px;padding:6px 8px;
   padding-bottom:calc(6px + env(safe-area-inset-bottom));
   background:var(--panel2);border-top:1px solid var(--line);
   overflow-x:auto;overflow-y:hidden;white-space:nowrap;
-  -webkit-overflow-scrolling:touch;scrollbar-width:none;
-}
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;}
 #symbolBar::-webkit-scrollbar{display:none;}
-.chip{
-  flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+.chip{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
   min-width:36px;height:33px;padding:0 10px;border-radius:6px;
   background:var(--panel2);border:1px solid var(--line);color:var(--text);
   font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;
-  cursor:pointer;user-select:none;-webkit-user-select:none;white-space:nowrap;
-}
+  cursor:pointer;user-select:none;-webkit-user-select:none;white-space:nowrap;}
 #symbolBar .chip{background:#2a2d2e;}
 .chip:active{background:var(--btn);color:#fff;border-color:var(--btn);}
-.chip.kw {color:var(--syn-keyword);}
-.chip.bi {color:var(--syn-function);}
-.chip.mod{color:var(--syn-class);}
-.chip.usr{color:var(--syn-variable);}
+.chip.kw {color:var(--syn-keyword);} .chip.bi{color:var(--syn-function);}
+.chip.mod{color:var(--syn-class);} .chip.usr{color:var(--syn-variable);}
 .chip.mth{color:var(--syn-variable);}
 
-/* ---------- output sheet ---------- */
-#sheet{
-  position:absolute;left:0;right:0;bottom:0;height:58%;
+#sheet{position:absolute;left:0;right:0;bottom:0;height:58%;
   background:#181818;border-top:1px solid var(--line);
   transform:translateY(105%);transition:transform .22s ease;
   display:flex;flex-direction:column;z-index:60;
-  border-radius:10px 10px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.65);
-}
+  border-radius:10px 10px 0 0;box-shadow:0 -12px 40px rgba(0,0,0,.65);}
 #sheet.open{transform:translateY(0);}
-#sheetHead{
-  display:flex;align-items:center;justify-content:space-between;
+#sheetHead{display:flex;align-items:center;justify-content:space-between;
   padding:8px 10px;border-bottom:1px solid var(--line);
   font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.8px;
-  text-transform:uppercase;flex:0 0 auto;
-}
+  text-transform:uppercase;flex:0 0 auto;}
 .grp{display:flex;gap:6px;}
-.smallBtn{
-  background:var(--panel2);border:1px solid var(--line);color:var(--text);
-  border-radius:5px;padding:5px 11px;font-size:12px;cursor:pointer;
-}
+.smallBtn{background:var(--panel2);border:1px solid var(--line);color:var(--text);
+  border-radius:5px;padding:5px 11px;font-size:12px;cursor:pointer;}
 .smallBtn:active{background:var(--btn);color:#fff;}
-#output{
-  flex:1;margin:0;padding:10px 14px;overflow:auto;
+#output{flex:1;margin:0;padding:10px 14px;overflow:auto;
   font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.5;
   white-space:pre-wrap;word-break:break-word;color:#cccccc;
-  -webkit-overflow-scrolling:touch;
-}
-#output .err{color:#f48771;}
-#output .info{color:var(--muted);}
+  -webkit-overflow-scrolling:touch;}
+#output .err{color:#f48771;} #output .info{color:var(--muted);}
 
-#scrim{
-  position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;
-  pointer-events:none;transition:opacity .22s;z-index:55;
-}
+#scrim{position:absolute;inset:0;background:rgba(0,0,0,.55);opacity:0;
+  pointer-events:none;transition:opacity .22s;z-index:55;}
 #scrim.show{opacity:1;pointer-events:auto;}
 
-/* ---------- modal ---------- */
-#modal{
-  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
-  z-index:200;padding:16px;background:rgba(0,0,0,.7);
-}
+#modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  z-index:200;padding:16px;background:rgba(0,0,0,.7);}
 #modal.open{display:flex;}
-#modalCard{
-  width:100%;max-width:400px;max-height:82vh;overflow:auto;
+#modalCard{width:100%;max-width:400px;max-height:82vh;overflow:auto;
   background:var(--panel);border:1px solid var(--line);border-radius:8px;
-  padding:6px;-webkit-overflow-scrolling:touch;
-}
-.mItem{
-  display:flex;align-items:center;gap:12px;padding:12px 14px;
-  border-radius:6px;cursor:pointer;font-size:14px;
-}
+  padding:6px;-webkit-overflow-scrolling:touch;}
+.mItem{display:flex;align-items:center;gap:12px;padding:12px 14px;
+  border-radius:6px;cursor:pointer;font-size:14px;}
 .mItem:active{background:var(--panel2);}
 .mHead{padding:14px 14px 6px;font-size:11px;text-transform:uppercase;
   letter-spacing:.8px;color:var(--muted);font-weight:700;}
@@ -220,6 +155,7 @@ body{
   </header>
 
   <main id="editorWrap">
+    <div id="gutter"><pre id="gutterInner"></pre></div>
     <pre id="highlight" aria-hidden="true"></pre>
     <textarea id="editor" spellcheck="false" autocapitalize="off"
       autocorrect="off" autocomplete="off" wrap="off"
@@ -248,51 +184,46 @@ body{
 <script>
 "use strict";
 
-/* ============================================================
-   1. DATA
-   ============================================================ */
-const PY_KEYWORDS_BLUE = new Set([
-  'def','class','lambda','global','nonlocal','del','assert','pass',
-  'async','await','and','or','not','in','is','True','False','None',
-  'self','cls'
-]);
-const PY_KEYWORDS_PURPLE = new Set([
-  'if','elif','else','for','while','return','break','continue','try',
-  'except','finally','with','as','raise','yield','import','from'
-]);
-const PY_BUILTINS_SET = new Set([
-  'abs','all','any','ascii','bin','bool','bytearray','bytes','callable','chr',
-  'classmethod','compile','complex','delattr','dict','dir','divmod','enumerate',
-  'eval','exec','filter','float','format','frozenset','getattr','globals',
-  'hasattr','hash','help','hex','id','input','int','isinstance','issubclass',
-  'iter','len','list','locals','map','max','min','next','object','oct','open',
-  'ord','pow','print','property','range','repr','reversed','round','set',
-  'setattr','slice','sorted','staticmethod','str','sum','super','tuple','type',
-  'vars','zip','Exception','ValueError','TypeError','KeyError','IndexError',
-  'RuntimeError','StopIteration','ZeroDivisionError','NameError',
-  'AttributeError','ImportError','FileNotFoundError','OSError','IOError',
-  'ArithmeticError','LookupError','AssertionError','NotImplementedError',
-  'BaseException'
-]);
-const PY_MODULES = ['math','random','time','datetime','json','os','sys','re','collections',
-  'itertools','functools','statistics','string','decimal','fractions','pathlib','csv',
-  'urllib','hashlib','base64','copy','pickle','io','textwrap','pprint','traceback',
-  'typing','dataclasses','enum','abc','operator','heapq','bisect','array','queue',
-  'uuid','sqlite3','unittest','threading','asyncio','subprocess','socket','glob',
-  'shutil','tempfile','calendar'];
-const PY_METHODS = [...new Set(['append','clear','copy','count','extend','index','insert',
-  'pop','remove','reverse','sort','add','difference','discard','intersection','isdisjoint',
-  'issubset','issuperset','symmetric_difference','union','update','capitalize','casefold',
-  'center','encode','endswith','find','format','isalnum','isalpha','isascii','isdecimal',
-  'isdigit','islower','isnumeric','isprintable','isspace','istitle','isupper','join',
-  'ljust','lower','lstrip','partition','removeprefix','removesuffix','replace','rfind',
-  'rindex','rjust','rpartition','rsplit','rstrip','split','splitlines','startswith',
-  'strip','swapcase','title','translate','upper','zfill','get','items','keys','popitem',
-  'setdefault','values','read','readline','readlines','write','writelines','seek','tell',
-  'close','flush','real','imag','conjugate','bit_length','to_bytes','from_bytes',
-  'total_seconds','strftime','timestamp','sqrt','floor','ceil','factorial','gcd',
-  'permutations','combinations','product','chain','groupby','reduce','defaultdict',
-  'Counter','namedtuple','deque'])];
+/* ================= DATA ================= */
+const PY_KEYWORDS_BLUE = new Set(['def','class','lambda','global','nonlocal',
+  'del','assert','pass','async','await','and','or','not','in','is','True',
+  'False','None','self','cls']);
+const PY_KEYWORDS_PURPLE = new Set(['if','elif','else','for','while','return',
+  'break','continue','try','except','finally','with','as','raise','yield',
+  'import','from']);
+const PY_BUILTINS_SET = new Set(['abs','all','any','ascii','bin','bool',
+  'bytearray','bytes','callable','chr','classmethod','compile','complex',
+  'delattr','dict','dir','divmod','enumerate','eval','exec','filter','float',
+  'format','frozenset','getattr','globals','hasattr','hash','help','hex','id',
+  'input','int','isinstance','issubclass','iter','len','list','locals','map',
+  'max','min','next','object','oct','open','ord','pow','print','property',
+  'range','repr','reversed','round','set','setattr','slice','sorted',
+  'staticmethod','str','sum','super','tuple','type','vars','zip','Exception',
+  'ValueError','TypeError','KeyError','IndexError','RuntimeError',
+  'StopIteration','ZeroDivisionError','NameError','AttributeError',
+  'ImportError','FileNotFoundError','OSError','IOError','ArithmeticError',
+  'LookupError','AssertionError','NotImplementedError','BaseException']);
+const PY_MODULES = ['math','random','time','datetime','json','os','sys','re',
+  'collections','itertools','functools','statistics','string','decimal',
+  'fractions','pathlib','csv','urllib','hashlib','base64','copy','pickle','io',
+  'textwrap','pprint','traceback','typing','dataclasses','enum','abc',
+  'operator','heapq','bisect','array','queue','uuid','sqlite3','unittest',
+  'threading','asyncio','subprocess','socket','glob','shutil','tempfile','calendar'];
+const PY_METHODS = [...new Set(['append','clear','copy','count','extend',
+  'index','insert','pop','remove','reverse','sort','add','difference','discard',
+  'intersection','isdisjoint','issubset','issuperset','symmetric_difference',
+  'union','update','capitalize','casefold','center','encode','endswith','find',
+  'format','isalnum','isalpha','isascii','isdecimal','isdigit','islower',
+  'isnumeric','isprintable','isspace','istitle','isupper','join','ljust',
+  'lower','lstrip','partition','removeprefix','removesuffix','replace','rfind',
+  'rindex','rjust','rpartition','rsplit','rstrip','split','splitlines',
+  'startswith','strip','swapcase','title','translate','upper','zfill','get',
+  'items','keys','popitem','setdefault','values','read','readline','readlines',
+  'write','writelines','seek','tell','close','flush','real','imag','conjugate',
+  'bit_length','to_bytes','from_bytes','total_seconds','strftime','timestamp',
+  'sqrt','floor','ceil','factorial','gcd','permutations','combinations',
+  'product','chain','groupby','reduce','defaultdict','Counter','namedtuple',
+  'deque'])];
 
 const SNIPPETS = [
   {label:'print',      text:'print(|)'},
@@ -318,45 +249,21 @@ const SNIPPETS = [
   {label:'import',     text:'import |'},
   {label:'from import',text:'from | import '},
   {label:'main',       text:'if __name__ == "__main__":\n    |'},
-  {label:'None',       text:'None'},
-  {label:'True',       text:'True'},
-  {label:'False',      text:'False'},
-  {label:'self',       text:'self'},
+  {label:'None',       text:'None'},{label:'True',text:'True'},
+  {label:'False',      text:'False'},{label:'self',text:'self'},
 ];
 
 const SYMBOLS = [
-  {l:'⇥', a:'indent'},
-  {l:'⇤', a:'unindent'},
-  {l:'⏎', t:'\n'},
-  {l:':', t:':'},
-  {l:'(', t:'()', pair:')', caret:1},
-  {l:')', t:')'},
-  {l:'[', t:'[]', pair:']', caret:1},
-  {l:']', t:']'},
-  {l:'{', t:'{}', pair:'}', caret:1},
-  {l:'}', t:'}'},
-  {l:'"', t:'""', pair:'"', caret:1},
-  {l:"'", t:"''", pair:"'", caret:1},
-  {l:'=',  t:' = '},
-  {l:'==', t:' == '},
-  {l:'!=', t:' != '},
-  {l:'<=', t:' <= '},
-  {l:'>=', t:' >= '},
-  {l:'<',  t:' < '},
-  {l:'>',  t:' > '},
-  {l:'+',  t:' + '},
-  {l:'-',  t:' - '},
-  {l:'*',  t:' * '},
-  {l:'/',  t:' / '},
-  {l:'//', t:' // '},
-  {l:'%',  t:' % '},
-  {l:'**', t:' ** '},
-  {l:'->', t:' -> '},
-  {l:',',  t:', '},
-  {l:'.',  t:'.'},
-  {l:'_',  t:'_'},
-  {l:'#',  t:'# '},
-  {l:'\\n', t:'\\n'},
+  {l:'⇥',a:'indent'},{l:'⇤',a:'unindent'},{l:'⏎',t:'\n'},{l:':',t:':'},
+  {l:'(',t:'()',pair:')',caret:1},{l:')',t:')'},
+  {l:'[',t:'[]',pair:']',caret:1},{l:']',t:']'},
+  {l:'{',t:'{}',pair:'}',caret:1},{l:'}',t:'}'},
+  {l:'"',t:'""',pair:'"',caret:1},{l:"'",t:"''",pair:"'",caret:1},
+  {l:'=',t:' = '},{l:'==',t:' == '},{l:'!=',t:' != '},
+  {l:'<=',t:' <= '},{l:'>=',t:' >= '},{l:'<',t:' < '},{l:'>',t:' > '},
+  {l:'+',t:' + '},{l:'-',t:' - '},{l:'*',t:' * '},{l:'/',t:' / '},
+  {l:'//',t:' // '},{l:'%',t:' % '},{l:'**',t:' ** '},{l:'->',t:' -> '},
+  {l:',',t:', '},{l:'.',t:'.'},{l:'_',t:'_'},{l:'#',t:'# '},{l:'\\n',t:'\\n'},
 ];
 
 const DEFAULT_CODE =
@@ -376,14 +283,12 @@ print(greet("Python"))
 `;
 
 const EXAMPLES = {
-'Hello World':
-`print("Hello, world!")
+'Hello World': `print("Hello, world!")
 
 name = input("What's your name? ")
 print(f"Nice to meet you, {name}!")
 `,
-'FizzBuzz':
-`for n in range(1, 21):
+'FizzBuzz': `for n in range(1, 21):
     if n % 15 == 0:
         print("FizzBuzz")
     elif n % 3 == 0:
@@ -393,8 +298,7 @@ print(f"Nice to meet you, {name}!")
     else:
         print(n)
 `,
-'Fibonacci':
-`def fib(n):
+'Fibonacci': `def fib(n):
     a, b = 0, 1
     out = []
     for _ in range(n):
@@ -404,8 +308,7 @@ print(f"Nice to meet you, {name}!")
 
 print(fib(15))
 `,
-'Lists & Dicts':
-`fruits = ["apple", "banana", "cherry"]
+'Lists & Dicts': `fruits = ["apple", "banana", "cherry"]
 fruits.append("date")
 print(fruits)
 print(sorted(fruits, key=len))
@@ -415,8 +318,7 @@ scores = {"alice": 92, "bob": 78, "carol": 85}
 for name, score in sorted(scores.items(), key=lambda kv: -kv[1]):
     print(f"{name:8} {score}")
 `,
-'Classes':
-`class Animal:
+'Classes': `class Animal:
     def __init__(self, name, sound):
         self.name = name
         self.sound = sound
@@ -433,27 +335,25 @@ print(d.speak())
 `,
 };
 
-/* ============================================================
-   2. DOM
-   ============================================================ */
-const editor     = document.getElementById('editor');
-const highlightEl= document.getElementById('highlight');
-const suggestBar = document.getElementById('suggestBar');
-const symbolBar  = document.getElementById('symbolBar');
-const outputEl   = document.getElementById('output');
-const sheet      = document.getElementById('sheet');
-const scrim      = document.getElementById('scrim');
-const modal      = document.getElementById('modal');
-const modalCard  = document.getElementById('modalCard');
-const btnRun     = document.getElementById('btnRun');
-const fileInput  = document.getElementById('fileInput');
+/* ================= DOM ================= */
+const editor      = document.getElementById('editor');
+const highlightEl = document.getElementById('highlight');
+const gutter      = document.getElementById('gutter');
+const gutterInner = document.getElementById('gutterInner');
+const suggestBar  = document.getElementById('suggestBar');
+const symbolBar   = document.getElementById('symbolBar');
+const outputEl    = document.getElementById('output');
+const sheet       = document.getElementById('sheet');
+const scrim       = document.getElementById('scrim');
+const modal       = document.getElementById('modal');
+const modalCard   = document.getElementById('modalCard');
+const btnRun      = document.getElementById('btnRun');
+const fileInput   = document.getElementById('fileInput');
 
-const STORE_CODE = 'pyphone.code.v2';
-const STORE_FONT = 'pyphone.font.v2';
+const STORE_CODE = 'pyphone.code.v3';
+const STORE_FONT = 'pyphone.font.v3';
 
-/* ============================================================
-   3. VIEWPORT
-   ============================================================ */
+/* ================= VIEWPORT ================= */
 function updateViewport(){
   const vv = window.visualViewport;
   if (!vv) return;
@@ -469,13 +369,10 @@ if (window.visualViewport){
 window.addEventListener('orientationchange', () => setTimeout(updateViewport, 250));
 updateViewport();
 
-/* ============================================================
-   4. SYNTAX HIGHLIGHTER  (VS Code Dark+)
-   ============================================================ */
+/* ================= HIGHLIGHTER ================= */
 function esc(s){
   return s.replace(/[&<>]/g, c => c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;');
 }
-
 const TOKEN_RE = new RegExp(
   '(?<comment>#[^\\n]*)' +
   '|(?<string>"""[\\s\\S]*?"""|\'\'\'[\\s\\S]*?\'\'\'|"(?:\\\\.|[^"\\\\\\n])*"|\'(?:\\\\.|[^\'\\\\\\n])*\')' +
@@ -486,7 +383,6 @@ const TOKEN_RE = new RegExp(
   '|(?<punct>[(){}\\[\\],.:;])',
   'g'
 );
-
 function highlightPython(code){
   const tokens = [];
   let last = 0, m;
@@ -507,8 +403,7 @@ function highlightPython(code){
   }
   if (last < code.length) tokens.push({ t:'plain', v: code.slice(last) });
 
-  let html = '';
-  let prevWord = '';
+  let html = '', prevWord = '';
   for (let i = 0; i < tokens.length; i++){
     const tk = tokens[i];
     if (tk.t === 'word'){
@@ -537,7 +432,25 @@ function highlightPython(code){
   return html;
 }
 
+/* ================= GUTTER + HIGHLIGHT SYNC ================= */
+let lastLineCount = -1;
 let hlQueued = false;
+
+function updateGutter(){
+  const text = editor.value;
+  let lines = 1;
+  for (let i = 0; i < text.length; i++){
+    if (text.charCodeAt(i) === 10) lines++;
+  }
+  if (lines !== lastLineCount){
+    let s = '';
+    for (let i = 1; i <= lines; i++) s += i + '\n';
+    gutterInner.textContent = s;
+    lastLineCount = lines;
+  }
+  gutterInner.style.transform = 'translateY(' + (-editor.scrollTop) + 'px)';
+}
+
 function scheduleHighlight(){
   if (hlQueued) return;
   hlQueued = true;
@@ -546,16 +459,16 @@ function scheduleHighlight(){
     highlightEl.innerHTML = highlightPython(editor.value) + '\u200b';
     highlightEl.scrollTop  = editor.scrollTop;
     highlightEl.scrollLeft = editor.scrollLeft;
+    updateGutter();
   });
 }
 editor.addEventListener('scroll', () => {
   highlightEl.scrollTop  = editor.scrollTop;
   highlightEl.scrollLeft = editor.scrollLeft;
+  gutterInner.style.transform = 'translateY(' + (-editor.scrollTop) + 'px)';
 }, { passive:true });
 
-/* ============================================================
-   5. EDITOR PRIMITIVES
-   ============================================================ */
+/* ================= EDITOR PRIMITIVES ================= */
 function focusEditor(){
   if (document.activeElement !== editor) editor.focus({ preventScroll:true });
 }
@@ -619,9 +532,7 @@ function unindent(){
   onEditorChange();
 }
 
-/* ============================================================
-   6. AUTO-INDENT + TAB
-   ============================================================ */
+/* ================= AUTO-INDENT + TAB ================= */
 editor.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey){
     e.preventDefault();
@@ -636,11 +547,10 @@ editor.addEventListener('keydown', (e) => {
     return;
   }
   if (e.key === 'Tab'){ e.preventDefault(); insertRaw('    '); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); runCode(); }
 });
 
-/* ============================================================
-   7. SUGGESTIONS
-   ============================================================ */
+/* ================= SUGGESTIONS ================= */
 function currentContext(){
   const pos = editor.selectionStart;
   if (pos !== editor.selectionEnd) return { mode:'none' };
@@ -686,7 +596,6 @@ function renderSuggestions(){
   const frag = document.createDocumentFragment();
   let made = 0;
   const MAX = 50;
-
   if (ctx.mode === 'attr'){
     const w = ctx.word.toLowerCase();
     for (const m of PY_METHODS){
@@ -726,9 +635,7 @@ function renderSuggestions(){
   suggestBar.appendChild(frag);
 }
 
-/* ============================================================
-   8. SYMBOL BAR
-   ============================================================ */
+/* ================= SYMBOL BAR ================= */
 function handleSymbol(s){
   if (s.a === 'indent') return indent();
   if (s.a === 'unindent') return unindent();
@@ -757,9 +664,7 @@ function buildSymbolBar(){
   symbolBar.appendChild(frag);
 }
 
-/* ============================================================
-   9. CHANGE + PERSIST
-   ============================================================ */
+/* ================= CHANGE + PERSIST ================= */
 let saveTimer = null;
 function persist(){
   clearTimeout(saveTimer);
@@ -779,9 +684,7 @@ editor.addEventListener('keyup', (e) => {
     scheduleRender();
 });
 
-/* ============================================================
-   10. OUTPUT SHEET
-   ============================================================ */
+/* ================= OUTPUT SHEET ================= */
 function openSheet(){ sheet.classList.add('open'); scrim.classList.add('show'); }
 function closeSheet(){ sheet.classList.remove('open'); scrim.classList.remove('show'); }
 scrim.addEventListener('click', closeSheet);
@@ -797,12 +700,10 @@ function appendOut(text, cls){
 }
 function clearOutput(){ outputEl.textContent = ''; }
 
-/* ============================================================
-   11. PYODIDE RUNNER
-   ============================================================ */
+/* ================= PYODIDE RUNNER ================= */
 let pyodide = null, pyLoading = null, running = false;
 const PYODIDE_VERSION = '0.26.2';
-const PYODIDE_BASE = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full/`;
+const PYODIDE_BASE = 'https://cdn.jsdelivr.net/pyodide/v' + PYODIDE_VERSION + '/full/';
 
 function loadScript(src){
   return new Promise((res, rej) => {
@@ -861,9 +762,7 @@ document.getElementById('btnKeyboard').addEventListener('click', () => {
   editor.blur(); window.scrollTo(0, 0);
 });
 
-/* ============================================================
-   12. MENU / MODAL
-   ============================================================ */
+/* ================= MENU / MODAL ================= */
 function openModal(builder){ modalCard.textContent = ''; builder(modalCard); modal.classList.add('open'); }
 function closeModal(){ modal.classList.remove('open'); }
 modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
@@ -899,7 +798,7 @@ function newFile(){
 }
 function loadExample(name){
   const code = EXAMPLES[name]; if (!code) return;
-  if (editor.value.trim() && !confirm(`Load "${name}"?`)) return;
+  if (editor.value.trim() && !confirm('Load "' + name + '"?')) return;
   editor.value = code; onEditorChange(); editor.scrollTop = 0;
 }
 function downloadPy(){
@@ -920,12 +819,12 @@ async function restartPython(){
   if (!pyodide) return;
   clearOutput();
   try {
-    await pyodide.runPythonAsync(`
-import sys
-for _n in list(globals().keys()):
-    if not _n.startswith('_'):
-        del globals()[_n]
-`);
+    await pyodide.runPythonAsync(
+      'import sys\n' +
+      'for _n in list(globals().keys()):\n' +
+      '    if not _n.startswith("_"):\n' +
+      '        del globals()[_n]\n'
+    );
     appendOut('Python state cleared.\n', 'info');
   } catch(e){ appendOut(String(e.message || e) + '\n', 'err'); }
 }
@@ -947,29 +846,27 @@ function showHelp(){
     card.appendChild(menuHead('How to use PyPhone'));
     const body = document.createElement('div');
     body.className = 'mText';
-    body.innerHTML = `
-      <p><b>▶ Run</b> executes real CPython via WebAssembly. First run
-      downloads ~10 MB; after that it's cached.</p>
-      <p><b>Type faster:</b><br>
-      • Suggestions appear as you type — tap to insert.<br>
-      • Not mid-word? The bar shows ready-made snippets.<br>
-      • Tap <code>.</code> after a value to see its methods.<br>
-      • <code>⇥</code> indents, <code>⇤</code> unindents.<br>
-      • <code>(</code> inserts <code>()</code> and puts the cursor inside.</p>
-      <p><b>Auto-indent:</b> Enter after a line ending in <code>:</code>
-      indents automatically.</p>
-      <p>Code is auto-saved in this browser. Use ☰ → <i>Download .py</i>
-      to export.</p>
-    `;
+    body.innerHTML =
+      '<p><b>▶ Run</b> executes real CPython via WebAssembly. First run ' +
+      'downloads ~10 MB; after that it is cached and works offline.</p>' +
+      '<p><b>Type faster:</b><br>' +
+      '• Suggestions appear as you type — tap to insert.<br>' +
+      '• Not mid-word? The bar shows ready-made snippets.<br>' +
+      '• Tap <code>.</code> after a value to see its methods.<br>' +
+      '• <code>⇥</code> indents, <code>⇤</code> unindents.<br>' +
+      '• <code>(</code> inserts <code>()</code> and puts the cursor inside.</p>' +
+      '<p><b>Auto-indent:</b> Enter after a line ending in <code>:</code> ' +
+      'indents automatically.</p>' +
+      '<p><b>Shortcut:</b> Ctrl/Cmd + Enter runs the code.</p>' +
+      '<p>Code is auto-saved in this browser. Use ☰ → <i>Download .py</i> ' +
+      'to export.</p>';
     card.appendChild(body);
     card.appendChild(menuItem('Close', () => {}));
   });
 }
 document.getElementById('btnMenu').addEventListener('click', showMenu);
 
-/* ============================================================
-   13. INIT
-   ============================================================ */
+/* ================= INIT ================= */
 (function init(){
   applyFont();
   buildSymbolBar();
@@ -982,10 +879,12 @@ document.getElementById('btnMenu').addEventListener('click', showMenu);
   if (navigator.onLine !== false)
     setTimeout(() => { ensurePyodide().catch(() => {}); }, 1500);
 })();
+
 window.addEventListener('beforeunload', () => {
   try { localStorage.setItem(STORE_CODE, editor.value); } catch(e){}
 });
-  /* ---- register service worker ---- */
+
+/* ================= SERVICE WORKER ================= */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js', { scope: './' })
