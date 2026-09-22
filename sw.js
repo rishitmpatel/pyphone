@@ -1,6 +1,6 @@
 /* PyPhone service worker */
 
-const CACHE_NAME = 'pyphone-v4';
+const CACHE_NAME = 'pyphone-v5';
 
 const APP_SHELL = [
   './',
@@ -8,6 +8,7 @@ const APP_SHELL = [
   './manifest.json',
   './icon.svg',
   './icon-maskable.svg',
+  './worker.js',
 ];
 
 self.addEventListener('install', (event) => {
