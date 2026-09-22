@@ -4,13 +4,12 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
-  script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com;
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com;
   style-src 'self' 'unsafe-inline';
   img-src 'self' data: blob:;
   font-src 'self';
   connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com;
   worker-src 'self' blob:;
-  frame-ancestors 'none';
   base-uri 'self';
   form-action 'none';
   object-src 'none';
@@ -214,7 +213,7 @@ body{
   font-size:12.5px;color:var(--syn-string);}
 </style>
 <script>
-/* Set theme before body renders to avoid a flash */
+/* Theme applied before paint to avoid flash */
 (function(){
   try {
     var t = localStorage.getItem('pyphone.theme.v1') || 'dark';
@@ -229,6 +228,8 @@ body{
   <header id="topbar">
     <div id="brand">🐍 <em>PyPhone</em></div>
     <div id="topActions">
+      <button id="btnUndo" class="iconBtn" title="Undo">↶</button>
+      <button id="btnRedo" class="iconBtn" title="Redo">↷</button>
       <button id="btnKeyboard" class="iconBtn" title="Hide keyboard">⌄</button>
       <button id="btnMenu" class="iconBtn" title="Menu">☰</button>
       <button id="btnRun" class="runBtn">▶ Run</button>
@@ -262,7 +263,7 @@ body{
 </div>
 
 <div id="modal"><div id="modalCard"></div></div>
-<input type="file" id="fileInput" accept=".py,.txt,text/plain" style="display:none">
+<input type="file" id="fileInput" accept=".py,.txt,.pyw,text/plain" style="display:none">
 
 <script>
 "use strict";
@@ -432,11 +433,12 @@ const modalCard   = document.getElementById('modalCard');
 const btnRun      = document.getElementById('btnRun');
 const fileInput   = document.getElementById('fileInput');
 
-const STORE_FILES  = 'pyphone.files.v4';
-const STORE_ACTIVE = 'pyphone.active.v4';
-const STORE_FONT   = 'pyphone.font.v4';
-const STORE_THEME  = 'pyphone.theme.v1';
-const STORE_LEGACY = 'pyphone.code.v3';
+const STORE_FILES    = 'pyphone.files.v4';
+const STORE_ACTIVE   = 'pyphone.active.v4';
+const STORE_FONT     = 'pyphone.font.v4';
+const STORE_THEME    = 'pyphone.theme.v1';
+const STORE_LEGACY   = 'pyphone.code.v3';
+const STORE_SNIPPETS = 'pyphone.customsnippets.v1';
 
 /* ==================== VIEWPORT ==================== */
 function updateViewport(){
@@ -454,7 +456,7 @@ if (window.visualViewport){
 window.addEventListener('orientationchange', () => setTimeout(updateViewport, 250));
 updateViewport();
 
-/* ==================== HIGHLIGHTER ==================== */
+/* ==================== HIGHLIGHTER (main-thread fallback) ==================== */
 const HTML_ESCAPES = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' };
 function esc(s){
   return String(s).replace(/[&<>"']/g, c => HTML_ESCAPES[c]);
@@ -518,9 +520,43 @@ function highlightPython(code){
   return html;
 }
 
+/* ==================== WEB WORKER ==================== */
+let hlWorker = null;
+let hlWorkerJobId = 0;
+let hlWorkerLastId = 0;
+let hlWorkerFallback = false;
+
+try {
+  hlWorker = new Worker('worker.js');
+  hlWorker.onerror = function(){
+    hlWorkerFallback = true;
+    hlWorker = null;
+  };
+  hlWorker.onmessage = function(e){
+    const { id, html, ok } = e.data;
+    if (id !== hlWorkerLastId || !ok) return;
+    highlightEl.innerHTML = html + '\u200b';
+    highlightEl.scrollTop  = editor.scrollTop;
+    highlightEl.scrollLeft = editor.scrollLeft;
+  };
+} catch(e){
+  hlWorkerFallback = true;
+  hlWorker = null;
+}
+
+function requestHighlight(text){
+  hlWorkerJobId++;
+  hlWorkerLastId = hlWorkerJobId;
+  hlWorker.postMessage({ id: hlWorkerJobId, code: text });
+}
+
 /* ==================== GUTTER + HIGHLIGHT ==================== */
 let lastLineCount = -1;
+let lastHighlightedText = null;
 let hlQueued = false;
+let hlLastRun = 0;
+const HL_MIN_INTERVAL_LARGE = 50;
+const HL_LARGE_THRESHOLD = 20000;
 
 function updateGutter(){
   const text = editor.value;
@@ -540,12 +576,29 @@ function updateGutter(){
 function scheduleHighlight(){
   if (hlQueued) return;
   hlQueued = true;
+
+  const now = performance.now();
+  const interval = editor.value.length > HL_LARGE_THRESHOLD
+    ? HL_MIN_INTERVAL_LARGE : 0;
+  const wait = Math.max(0, interval - (now - hlLastRun));
+
   requestAnimationFrame(() => {
-    hlQueued = false;
-    highlightEl.innerHTML = highlightPython(editor.value) + '\u200b';
-    highlightEl.scrollTop  = editor.scrollTop;
-    highlightEl.scrollLeft = editor.scrollLeft;
-    updateGutter();
+    setTimeout(() => {
+      hlQueued = false;
+      hlLastRun = performance.now();
+      updateGutter();
+
+      if (editor.value === lastHighlightedText) return;
+      lastHighlightedText = editor.value;
+
+      if (hlWorkerFallback || !hlWorker){
+        highlightEl.innerHTML = highlightPython(editor.value) + '\u200b';
+        highlightEl.scrollTop  = editor.scrollTop;
+        highlightEl.scrollLeft = editor.scrollLeft;
+      } else {
+        requestHighlight(editor.value);
+      }
+    }, wait);
   });
 }
 editor.addEventListener('scroll', () => {
@@ -630,7 +683,7 @@ function unindent(){
   onEditorChange();
 }
 
-/* ==================== KEYBOARD: AUTO-INDENT + TAB + RUN ==================== */
+/* ==================== KEYBOARD ==================== */
 editor.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey){
     e.preventDefault();
@@ -660,39 +713,31 @@ editor.addEventListener('beforeinput', (e) => {
     const pos = editor.selectionStart;
     const end = editor.selectionEnd;
 
-    /* Skip over a closing char if the next char is already that char */
     if (CLOSERS.has(ch) && pos === end && editor.value[pos] === ch){
       e.preventDefault();
-      insertRaw('');
+      focusEditor();
       editor.setSelectionRange(pos + 1, pos + 1);
       onEditorChange();
       return;
     }
-
     if (PAIRS[ch]){
-      /* If the next char is already the closing char, just move past it */
       if (editor.value[pos] === PAIRS[ch] && pos === end){
         e.preventDefault();
-        insertRaw('');
+        focusEditor();
         editor.setSelectionRange(pos + 1, pos + 1);
         onEditorChange();
         return;
       }
-
-      /* Don't auto-close quotes immediately after a word char */
       if ((ch === '"' || ch === "'") && pos > 0){
         const prev = editor.value[pos - 1];
         if (/[A-Za-z0-9_]/.test(prev)) return;
       }
-
-      /* Wrap a selection */
       if (pos !== end){
         e.preventDefault();
         const sel = editor.value.slice(pos, end);
         replaceRange(pos, end, ch + sel + PAIRS[ch], 1 + sel.length);
         return;
       }
-
       e.preventDefault();
       insertRaw(ch + PAIRS[ch], 1);
       return;
@@ -739,6 +784,127 @@ function fuzzyScore(query, target){
   return score - target.length * 0.1;
 }
 
+/* ==================== SCOPE-AWARE USER NAMES ==================== */
+function getUserNames(){
+  const src = editor.value;
+  const cursor = editor.selectionStart;
+  const names = new Map();
+
+  /* Strip strings and comments so we don't pick up fake names */
+  let stripped = '';
+  {
+    let i = 0, mode = 'code';
+    while (i < src.length){
+      const c = src[i];
+      if (mode === 'code'){
+        if (c === '#'){ mode = 'comment'; stripped += ' '; i++; continue; }
+        if (c === '"' || c === "'"){
+          const triple = src.slice(i, i+3);
+          if (triple === '"""' || triple === "'''"){
+            mode = triple; stripped += '   '; i += 3; continue;
+          }
+          mode = c; stripped += ' '; i++; continue;
+        }
+        stripped += c; i++;
+      } else if (mode === 'comment'){
+        if (c === '\n') mode = 'code';
+        stripped += (c === '\n' ? '\n' : ' '); i++;
+      } else {
+        if (mode.length === 3 && src.slice(i, i+3) === mode){
+          stripped += '   '; i += 3; mode = 'code'; continue;
+        }
+        if (mode.length === 1 && c === mode){
+          stripped += ' '; i++; mode = 'code'; continue;
+        }
+        if (c === '\\' && mode.length === 1){ stripped += '  '; i += 2; continue; }
+        stripped += (c === '\n' ? '\n' : ' '); i++;
+      }
+    }
+  }
+
+  let m;
+  const reDef = /\b(?:def|class)\s+([A-Za-z_]\w*)/g;
+  while ((m = reDef.exec(stripped))) names.set(m[1], m.index);
+
+  const reAsg = /^[ \t]*([A-Za-z_]\w*)\s*=(?!=)/gm;
+  while ((m = reAsg.exec(stripped))){
+    if (!names.has(m[1])) names.set(m[1], m.index);
+  }
+
+  const reFor = /\bfor\s+([A-Za-z_]\w*(?:\s*,\s*[A-Za-z_]\w*)*)\s+in\b/g;
+  while ((m = reFor.exec(stripped))){
+    for (const v of m[1].split(',')){
+      const name = v.trim();
+      if (!names.has(name)) names.set(name, m.index);
+    }
+  }
+
+  const reImp = /^[ \t]*(?:from\s+\S+\s+)?import\s+([A-Za-z_]\w*)/gm;
+  while ((m = reImp.exec(stripped))){
+    if (!names.has(m[1])) names.set(m[1], m.index);
+  }
+
+  return [...names.entries()]
+    .sort((a, b) => {
+      const aBefore = a[1] < cursor ? 0 : 1;
+      const bBefore = b[1] < cursor ? 0 : 1;
+      if (aBefore !== bBefore) return aBefore - bBefore;
+      return a[1] - b[1];
+    })
+    .map(e => e[0]);
+}
+
+/* ==================== CUSTOM SNIPPETS ==================== */
+function loadCustomSnippets(){
+  try {
+    const raw = localStorage.getItem(STORE_SNIPPETS);
+    if (raw) return JSON.parse(raw);
+  } catch(e){}
+  return [];
+}
+function saveCustomSnippets(list){
+  try { localStorage.setItem(STORE_SNIPPETS, JSON.stringify(list)); } catch(e){}
+}
+function addCustomSnippet(){
+  openModal((card) => {
+    card.appendChild(menuHead('New custom snippet'));
+    const wrap = document.createElement('div');
+    wrap.style.padding = '8px 14px';
+
+    const label = document.createElement('input');
+    label.id = 'snLabel';
+    label.placeholder = 'Label (e.g. main)';
+    label.style.cssText = 'width:100%;padding:8px;margin-bottom:8px;' +
+      'background:var(--panel2);border:1px solid var(--line);' +
+      'border-radius:5px;color:var(--text);font-family:inherit;font-size:14px;';
+    wrap.appendChild(label);
+
+    const text = document.createElement('textarea');
+    text.id = 'snText';
+    text.placeholder = 'Code. Use | for cursor position.';
+    text.style.cssText = 'width:100%;height:120px;padding:8px;' +
+      'background:var(--panel2);border:1px solid var(--line);' +
+      'border-radius:5px;color:var(--text);' +
+      'font-family:ui-monospace,monospace;font-size:13px;';
+    wrap.appendChild(text);
+
+    card.appendChild(wrap);
+
+    card.appendChild(menuItem('Save snippet', () => {
+      const l = label.value.trim();
+      const t = text.value;
+      if (!l || !t) return;
+      const list = loadCustomSnippets();
+      list.push({ label: l, text: t });
+      saveCustomSnippets(list);
+      renderSuggestions();
+    }));
+    card.appendChild(menuItem('Cancel', () => {}));
+
+    setTimeout(() => label.focus(), 50);
+  });
+}
+
 /* ==================== SUGGESTIONS ==================== */
 function currentContext(){
   const pos = editor.selectionStart;
@@ -754,17 +920,6 @@ function currentContext(){
   if (/\.$/.test(before) && !/\d\.$/.test(before))
     return { mode:'attr', word:'', start: pos };
   return { mode:'none' };
-}
-function getUserNames(){
-  const names = new Set(), src = editor.value;
-  let m;
-  const reDef = /\b(?:def|class)\s+([A-Za-z_]\w*)/g;
-  while ((m = reDef.exec(src))) names.add(m[1]);
-  const reAsg = /^[ \t]*([A-Za-z_]\w*)\s*=(?!=)/gm;
-  while ((m = reAsg.exec(src))) names.add(m[1]);
-  const reImp = /^[ \t]*(?:from\s+\S+\s+)?import\s+([A-Za-z_]\w*)/gm;
-  while ((m = reImp.exec(src))) names.add(m[1]);
-  return [...names];
 }
 function makeChip(label, cls, fn){
   const d = document.createElement('div');
@@ -793,14 +948,15 @@ function renderSuggestions(){
       .filter(x => x.score >= 0)
       .sort((a, b) => b.score - a.score);
     const seen = new Set();
-    for (const { name } of scored){
+    for (const item of scored){
       if (made >= MAX) break;
-      if (seen.has(name)) continue;
-      if (name.toLowerCase() === w) continue;
-      seen.add(name);
-      const ins = name + '()';
+      if (seen.has(item.name)) continue;
+      if (item.name.toLowerCase() === w) continue;
+      seen.add(item.name);
+      const ins = item.name + '()';
+      const captured = item.name;
       frag.appendChild(makeChip(ins, 'mth', () => {
-        replaceRange(ctx.start, ctx.start + ctx.word.length, ins, name.length + 1);
+        replaceRange(ctx.start, ctx.start + ctx.word.length, ins, captured.length + 1);
       }));
       made++;
     }
@@ -819,18 +975,21 @@ function renderSuggestions(){
       .sort((a, b) => b.score - a.score);
 
     const seen = new Set();
-    for (const { name, cls } of scored){
+    for (const item of scored){
       if (made >= MAX) break;
-      if (seen.has(name)) continue;
-      if (name.toLowerCase() === w) continue;
-      seen.add(name);
-      frag.appendChild(makeChip(name, cls, () => {
-        replaceRange(ctx.start, ctx.start + ctx.word.length, name, name.length);
+      if (seen.has(item.name)) continue;
+      if (item.name.toLowerCase() === w) continue;
+      seen.add(item.name);
+      const captured = item.name;
+      frag.appendChild(makeChip(captured, item.cls, () => {
+        replaceRange(ctx.start, ctx.start + ctx.word.length, captured, captured.length);
       }));
       made++;
     }
   }
   if (made === 0){
+    for (const s of loadCustomSnippets())
+      frag.appendChild(makeChip(s.label, 'usr', () => insertSnippet(s.text)));
     for (const s of SNIPPETS)
       frag.appendChild(makeChip(s.label, '', () => insertSnippet(s.text)));
   }
@@ -895,6 +1054,8 @@ function loadFiles(){
 }
 
 let saveTimer = null;
+let lastSaveError = 0;
+
 function persist(){
   const f = activeFile();
   if (f) f.code = editor.value;
@@ -903,8 +1064,34 @@ function persist(){
     try {
       localStorage.setItem(STORE_FILES, JSON.stringify(files));
       localStorage.setItem(STORE_ACTIVE, activeId || '');
-    } catch(e){}
+      lastSaveError = 0;
+    } catch(e){
+      const now = Date.now();
+      if (now - lastSaveError > 30000){
+        lastSaveError = now;
+        if (e && (e.name === 'QuotaExceededError' || e.code === 22)){
+          showSaveWarning('Storage is full. Download a backup to avoid losing work.');
+        } else {
+          showSaveWarning('Could not save. Browser storage may be blocked.');
+        }
+      }
+    }
   }, 400);
+}
+
+function showSaveWarning(msg){
+  let bar = document.getElementById('saveWarn');
+  if (!bar){
+    bar = document.createElement('div');
+    bar.id = 'saveWarn';
+    bar.style.cssText =
+      'position:fixed;left:0;right:0;bottom:0;background:#a33;color:#fff;' +
+      'padding:8px 12px;font-size:13px;text-align:center;z-index:500;' +
+      'padding-bottom:calc(8px + env(safe-area-inset-bottom));cursor:pointer;';
+    bar.addEventListener('click', () => bar.remove());
+    document.body.appendChild(bar);
+  }
+  bar.textContent = '⚠ ' + msg + ' (tap to dismiss)';
 }
 
 function renderTabs(){
@@ -945,6 +1132,7 @@ function switchTab(id){
   editor.value = activeFile().code;
   editor.scrollTop = 0;
   lastLineCount = -1;
+  lastHighlightedText = null;
   scheduleHighlight();
   scheduleRender();
   renderTabs();
@@ -960,6 +1148,7 @@ function newTab(){
   activeId = nf.id;
   editor.value = '';
   lastLineCount = -1;
+  lastHighlightedText = null;
   scheduleHighlight();
   scheduleRender();
   renderTabs();
@@ -978,6 +1167,7 @@ function closeTab(id){
     activeId = next.id;
     editor.value = next.code;
     lastLineCount = -1;
+    lastHighlightedText = null;
     scheduleHighlight();
     scheduleRender();
   }
@@ -1015,6 +1205,18 @@ editor.addEventListener('keyup', (e) => {
     scheduleRender();
 });
 
+/* ==================== UNDO / REDO ==================== */
+document.getElementById('btnUndo').addEventListener('click', () => {
+  focusEditor();
+  try { document.execCommand('undo', false); } catch(e){}
+  onEditorChange();
+});
+document.getElementById('btnRedo').addEventListener('click', () => {
+  focusEditor();
+  try { document.execCommand('redo', false); } catch(e){}
+  onEditorChange();
+});
+
 /* ==================== OUTPUT SHEET ==================== */
 function openSheet(){ sheet.classList.add('open'); scrim.classList.add('show'); }
 function closeSheet(){ sheet.classList.remove('open'); scrim.classList.remove('show'); }
@@ -1023,13 +1225,10 @@ document.getElementById('btnCloseOut').addEventListener('click', closeSheet);
 document.getElementById('btnClearOut').addEventListener('click', () => { outputEl.textContent = ''; });
 
 function appendOut(text, cls){
-  // Always sanitize: even though we use textContent, ensure the string
-  // is a primitive (not a Symbol, object, etc.) before rendering.
   const safe = (typeof text === 'string') ? text : String(text);
-
   const span = document.createElement('span');
   if (cls) span.className = cls;
-  span.textContent = safe;                    // <-- NEVER use innerHTML here
+  span.textContent = safe;
   outputEl.appendChild(span);
   outputEl.scrollTop = outputEl.scrollHeight;
 }
@@ -1043,7 +1242,10 @@ const PYODIDE_BASE = 'https://cdn.jsdelivr.net/pyodide/v' + PYODIDE_VERSION + '/
 function loadScript(src){
   return new Promise((res, rej) => {
     const s = document.createElement('script');
-    s.src = src; s.onload = res; s.onerror = () => rej(new Error('load fail ' + src));
+    s.src = src;
+    s.crossOrigin = 'anonymous';
+    s.onload = () => res();
+    s.onerror = () => rej(new Error('load fail ' + src));
     document.head.appendChild(s);
   });
 }
@@ -1097,7 +1299,203 @@ document.getElementById('btnKeyboard').addEventListener('click', () => {
   editor.blur(); window.scrollTo(0, 0);
 });
 
-/* ==================== THEME ==================== */
+/* ==================== PACKAGE LOADER ==================== */
+const AVAILABLE_PACKAGES = [
+  { name: 'numpy',      label: 'NumPy (math, arrays)' },
+  { name: 'pandas',     label: 'Pandas (dataframes)' },
+  { name: 'scipy',      label: 'SciPy (scientific)' },
+  { name: 'matplotlib', label: 'Matplotlib (plots)' },
+  { name: 'sympy',      label: 'SymPy (symbolic math)' },
+  { name: 'micropip',   label: 'micropip (pure-Python installer)' },
+];
+async function loadPackage(name){
+  try {
+    const py = await ensurePyodide();
+    openSheet(); clearOutput();
+    appendOut('Loading ' + name + '...\n', 'info');
+    await py.loadPackage(name);
+    appendOut(name + ' loaded. You can now `import ' + name + '`.\n', 'info');
+  } catch(e){
+    appendOut('Failed to load ' + name + ': ' + String(e.message || e) + '\n', 'err');
+  }
+}
+function showPackageMenu(){
+  openModal((card) => {
+    card.appendChild(menuHead('Load Python package'));
+    for (const p of AVAILABLE_PACKAGES){
+      card.appendChild(menuItem('📦  ' + p.label, () => loadPackage(p.name)));
+    }
+    card.appendChild(menuHead('First load is slow — cached after.'));
+    card.appendChild(menuItem('Close', () => {}));
+  });
+}
+
+/* ==================== SEARCH & REPLACE ==================== */
+function openSearch(){
+  openModal((card) => {
+    card.appendChild(menuHead('Find & replace'));
+    const wrap = document.createElement('div');
+    wrap.style.padding = '8px 14px';
+
+    const findInput = document.createElement('input');
+    findInput.placeholder = 'Find...';
+    findInput.style.cssText = 'width:100%;padding:8px;margin-bottom:8px;' +
+      'background:var(--panel2);border:1px solid var(--line);' +
+      'border-radius:5px;color:var(--text);font-family:inherit;font-size:14px;';
+    wrap.appendChild(findInput);
+
+    const replInput = document.createElement('input');
+    replInput.placeholder = 'Replace with...';
+    replInput.style.cssText = 'width:100%;padding:8px;' +
+      'background:var(--panel2);border:1px solid var(--line);' +
+      'border-radius:5px;color:var(--text);font-family:inherit;font-size:14px;';
+    wrap.appendChild(replInput);
+    card.appendChild(wrap);
+
+    function doReplaceAll(){
+      const q = findInput.value;
+      const r = replInput.value;
+      if (!q) return;
+      const text = editor.value;
+      const replaced = text.split(q).join(r);
+      if (replaced !== text){
+        editor.value = replaced;
+        lastHighlightedText = null;
+        onEditorChange();
+      }
+      closeModal();
+    }
+    function doFindNext(){
+      const q = findInput.value;
+      if (!q) return;
+      const text = editor.value;
+      const start = editor.selectionEnd;
+      let idx = text.indexOf(q, start);
+      if (idx === -1) idx = text.indexOf(q, 0);
+      if (idx === -1) return;
+      focusEditor();
+      editor.setSelectionRange(idx, idx + q.length);
+      // Scroll selection into view roughly
+      const lines = text.slice(0, idx).split('\n').length - 1;
+      const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 24;
+      editor.scrollTop = Math.max(0, lines * lineHeight - editor.clientHeight / 2);
+      scheduleHighlight();
+    }
+
+    card.appendChild(menuItem('Find next', doFindNext));
+    card.appendChild(menuItem('Replace all in current tab', doReplaceAll));
+    card.appendChild(menuItem('Close', () => {}));
+
+    setTimeout(() => findInput.focus(), 50);
+  });
+}
+
+/* ==================== WORKSPACE IMPORT / EXPORT ==================== */
+function exportWorkspace(){
+  const f = activeFile();
+  if (f) f.code = editor.value;
+  const payload = {
+    version: 1,
+    exported: new Date().toISOString(),
+    files: files.map(f => ({ name: f.name, code: f.code })),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'pyphone-workspace-' + new Date().toISOString().slice(0, 10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function importWorkspace(){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,application/json';
+  input.onchange = () => {
+    const f = input.files[0];
+    if (!f) return;
+    if (f.size > 5 * 1024 * 1024){ alert('File too large.'); return; }
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const data = JSON.parse(String(r.result));
+        if (!data || !Array.isArray(data.files)) throw new Error('Invalid format');
+        if (data.files.length > 100) throw new Error('Too many files');
+        const incoming = [];
+        for (const item of data.files){
+          if (typeof item.name !== 'string' || typeof item.code !== 'string') continue;
+          if (item.name.length > 100 || item.code.length > 1024 * 1024) continue;
+          incoming.push({ id: uid(), name: item.name, code: item.code });
+        }
+        if (!incoming.length) throw new Error('No valid files found');
+        if (!confirm('Import ' + incoming.length + ' file(s)? They will be added as new tabs.')) return;
+        const cur = activeFile();
+        if (cur) cur.code = editor.value;
+        files = files.concat(incoming);
+        activeId = incoming[0].id;
+        editor.value = incoming[0].code;
+        lastLineCount = -1;
+        lastHighlightedText = null;
+        scheduleHighlight();
+        scheduleRender();
+        renderTabs();
+        persist();
+      } catch(e){
+        alert('Import failed: ' + (e.message || e));
+      }
+    };
+    r.readAsText(f);
+  };
+  input.click();
+}
+
+/* ==================== FILE IMPORT ==================== */
+const MAX_IMPORT_BYTES = 512 * 1024;
+const ALLOWED_EXT = ['.py', '.txt', '.pyw'];
+
+fileInput.addEventListener('change', () => {
+  const f = fileInput.files && fileInput.files[0];
+  fileInput.value = '';
+  if (!f) return;
+
+  const name = f.name || 'imported.py';
+  const dot = name.lastIndexOf('.');
+  const ext = dot >= 0 ? name.slice(dot).toLowerCase() : '';
+  if (!ALLOWED_EXT.includes(ext)){
+    alert('Only ' + ALLOWED_EXT.join(', ') + ' files can be imported.');
+    return;
+  }
+  if (f.size > MAX_IMPORT_BYTES){
+    alert('File is too large. Limit is ' + Math.round(MAX_IMPORT_BYTES/1024) + ' KB.');
+    return;
+  }
+  const r = new FileReader();
+  r.onerror = () => alert('Could not read the file.');
+  r.onload = () => {
+    const text = String(r.result || '');
+    if (text.indexOf('\u0000') !== -1){
+      alert('This does not look like a text file.');
+      return;
+    }
+    const nf = { id: uid(), name: name, code: text };
+    files.push(nf);
+    activeId = nf.id;
+    editor.value = nf.code;
+    lastLineCount = -1;
+    lastHighlightedText = null;
+    scheduleHighlight();
+    scheduleRender();
+    renderTabs();
+    persist();
+    editor.scrollTop = 0;
+  };
+  r.readAsText(f);
+});
+
+/* ==================== THEME + FONT ==================== */
 function applyTheme(){
   const t = localStorage.getItem(STORE_THEME) || 'dark';
   document.documentElement.setAttribute('data-theme', t);
@@ -1110,8 +1508,6 @@ function toggleTheme(){
   localStorage.setItem(STORE_THEME, next);
   applyTheme();
 }
-
-/* ==================== FONT ==================== */
 function applyFont(){
   const fs = parseInt(localStorage.getItem(STORE_FONT) || '16', 10);
   const safe = Math.max(16, isNaN(fs) ? 16 : fs);
@@ -1141,13 +1537,19 @@ function menuHead(text){
   const d = document.createElement('div');
   d.className = 'mHead'; d.textContent = text; return d;
 }
+
 function showMenu(){
   openModal((card) => {
     card.appendChild(menuItem('➕  New tab', newTab));
     card.appendChild(menuItem('✏️  Rename current tab', renameActiveTab));
     card.appendChild(menuItem('🧹  Clear current file', clearCurrentFile));
+    card.appendChild(menuItem('🔍  Find & replace', openSearch));
+    card.appendChild(menuItem('⭐  Add custom snippet', addCustomSnippet));
     card.appendChild(menuItem('📂  Open a .py file', () => fileInput.click()));
     card.appendChild(menuItem('💾  Download current .py', downloadPy));
+    card.appendChild(menuItem('📤  Export workspace (.json)', exportWorkspace));
+    card.appendChild(menuItem('📥  Import workspace (.json)', importWorkspace));
+    card.appendChild(menuItem('📦  Load Python package…', showPackageMenu));
     card.appendChild(menuItem('🧹  Clear output', clearOutput));
     card.appendChild(menuItem('♻️  Restart Python', restartPython));
     card.appendChild(menuItem('🌗  Toggle light / dark theme', toggleTheme));
@@ -1159,14 +1561,17 @@ function showMenu(){
     card.appendChild(menuItem('ℹ️  How to use', showHelp));
   });
 }
+
 function loadExample(name){
   const code = EXAMPLES[name]; if (!code) return;
   const f = activeFile();
   if (f && editor.value.trim() && !confirm('Replace "' + f.name + '" with the "' + name + '" example?')) return;
   editor.value = code;
+  lastHighlightedText = null;
   onEditorChange();
   editor.scrollTop = 0;
 }
+
 function downloadPy(){
   const f = activeFile();
   const filename = (f && f.name) ? f.name : 'script.py';
@@ -1177,23 +1582,7 @@ function downloadPy(){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
-fileInput.addEventListener('change', () => {
-  const f = fileInput.files && fileInput.files[0]; if (!f) return;
-  const r = new FileReader();
-  r.onload = () => {
-    const nf = { id: uid(), name: f.name || 'imported.py', code: String(r.result || '') };
-    files.push(nf);
-    activeId = nf.id;
-    editor.value = nf.code;
-    lastLineCount = -1;
-    scheduleHighlight();
-    scheduleRender();
-    renderTabs();
-    persist();
-    editor.scrollTop = 0;
-  };
-  r.readAsText(f); fileInput.value = '';
-});
+
 async function restartPython(){
   if (!pyodide) return;
   clearOutput();
@@ -1207,6 +1596,7 @@ async function restartPython(){
     appendOut('Python state cleared.\n', 'info');
   } catch(e){ appendOut(String(e.message || e) + '\n', 'err'); }
 }
+
 function showHelp(){
   openModal((card) => {
     card.appendChild(menuHead('How to use PyPhone'));
@@ -1219,19 +1609,21 @@ function showHelp(){
       'tap × to close. Everything auto-saves.</p>' +
       '<p><b>Type faster:</b><br>' +
       '• Suggestions appear as you type — tap to insert.<br>' +
-      '• Not mid-word? The bar shows ready-made snippets.<br>' +
+      '• Not mid-word? The bar shows ready-made and custom snippets.<br>' +
       '• Tap <code>.</code> after a value to see its methods.<br>' +
       '• <code>⇥</code> indents, <code>⇤</code> unindents.<br>' +
       '• Type <code>(</code> — it inserts <code>()</code> for you.</p>' +
+      '<p><b>Undo / Redo</b> buttons are in the top bar (↶ ↷).</p>' +
       '<p><b>Auto-indent:</b> Enter after a line ending in <code>:</code> ' +
       'indents automatically.</p>' +
-      '<p><b>Shortcut:</b> Ctrl/Cmd + Enter runs the code.</p>' +
-      '<p>Code is auto-saved in this browser. Use ☰ → <i>Download</i> ' +
-      'to export.</p>';
+      '<p><b>Packages:</b> ☰ → Load Python package to install NumPy, Pandas, etc.</p>' +
+      '<p><b>Backup:</b> ☰ → Export workspace saves all tabs as one .json.</p>' +
+      '<p><b>Shortcut:</b> Ctrl/Cmd + Enter runs the code.</p>';
     card.appendChild(body);
     card.appendChild(menuItem('Close', () => {}));
   });
 }
+
 document.getElementById('btnMenu').addEventListener('click', showMenu);
 
 /* ==================== INIT ==================== */
@@ -1268,4 +1660,4 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 </body>
-</html>
+  </html>
