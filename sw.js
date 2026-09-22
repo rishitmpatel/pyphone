@@ -1,56 +1,47 @@
-/* PyPhone service worker — caches app shell + Pyodide for offline use */
+/* PyPhone service worker */
 
-const CACHE_NAME = 'pyphone-v1';
+const CACHE_NAME = 'pyphone-v4';
 
-/* Files precached on install */
 const APP_SHELL = [
   './',
   './index.html',
+  './manifest.json',
+  './icon.svg',
+  './icon-maskable.svg',
 ];
 
-/* ---------- install ---------- */
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())   // don't wait for old tabs to close
+      .then(() => self.skipWaiting())
   );
 });
 
-/* ---------- activate ---------- */
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys
-          .filter((k) => k !== CACHE_NAME)   // anything not our current version
-          .map((k) => caches.delete(k))
+        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
       ))
-      .then(() => self.clients.claim())      // take over open tabs immediately
+      .then(() => self.clients.claim())
   );
 });
 
-/* ---------- fetch ---------- */
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  if (req.method !== 'GET') return;   // never cache POST/PUT/DELETE
+  if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
 
-  /* Pyodide + packages from jsDelivr.
-     URLs contain the version number, so they're immutable → cache-first. */
   if (url.hostname === 'cdn.jsdelivr.net') {
     event.respondWith(cacheFirst(req));
     return;
   }
-
-  /* Our own files (index.html, sw.js) → stale-while-revalidate. */
   if (url.origin === self.location.origin) {
     event.respondWith(staleWhileRevalidate(req));
     return;
   }
-
-  /* Anything else → let the browser handle it. */
 });
 
 async function cacheFirst(req) {
@@ -70,6 +61,6 @@ async function staleWhileRevalidate(req) {
       if (resp && resp.ok) cache.put(req, resp.clone());
       return resp;
     })
-    .catch(() => hit);   // offline? fall back to whatever we have
+    .catch(() => hit);
   return hit || network;
 }
