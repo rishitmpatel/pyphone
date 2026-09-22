@@ -1023,9 +1023,13 @@ document.getElementById('btnCloseOut').addEventListener('click', closeSheet);
 document.getElementById('btnClearOut').addEventListener('click', () => { outputEl.textContent = ''; });
 
 function appendOut(text, cls){
+  // Always sanitize: even though we use textContent, ensure the string
+  // is a primitive (not a Symbol, object, etc.) before rendering.
+  const safe = (typeof text === 'string') ? text : String(text);
+
   const span = document.createElement('span');
   if (cls) span.className = cls;
-  span.textContent = text;
+  span.textContent = safe;                    // <-- NEVER use innerHTML here
   outputEl.appendChild(span);
   outputEl.scrollTop = outputEl.scrollHeight;
 }
