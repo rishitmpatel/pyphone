@@ -442,8 +442,9 @@ window.addEventListener('orientationchange', () => setTimeout(updateViewport, 25
 updateViewport();
 
 /* ==================== HIGHLIGHTER ==================== */
+const HTML_ESCAPES = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' };
 function esc(s){
-  return s.replace(/[&<>]/g, c => c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;');
+  return String(s).replace(/[&<>"']/g, c => HTML_ESCAPES[c]);
 }
 const TOKEN_RE = new RegExp(
   '(?<comment>#[^\\n]*)' +
