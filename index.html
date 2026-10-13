@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="
   default-src 'self';
-  script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com;
+  script-src 'self' 'unsafe-inline';
   style-src 'self' 'unsafe-inline';
   img-src 'self' data: blob:;
   font-src 'self';
-  connect-src 'self' https://cdn.jsdelivr.net https://unpkg.com;
-  worker-src 'self' blob:;
+  connect-src 'self';
+  worker-src 'self';
   base-uri 'self';
   form-action 'none';
   object-src 'none';
@@ -82,6 +82,7 @@ body{
 .runBtn{background:var(--run);color:#fff;border:none;font-weight:600;
   height:34px;padding:0 16px;border-radius:6px;font-size:14px;cursor:pointer;}
 .runBtn:disabled{opacity:.5;}
+.runBtn.stop{background:#c93c37;}
 
 /* ==================== TAB BAR ==================== */
 #tabBar{
@@ -684,17 +685,21 @@ function unindent(){
 }
 
 /* ==================== KEYBOARD ==================== */
+function autoIndentNewline(){
+  const pos = editor.selectionStart;
+  const before = editor.value.slice(0, pos);
+  const line = before.slice(before.lastIndexOf('\n') + 1);
+  let ind = (line.match(/^[ \t]*/) || [''])[0];
+  let extra = '';
+  if (line.trim() === '') ind = '';
+  else if (/:\s*(#.*)?$/.test(line)) extra = '    ';
+  insertRaw('\n' + ind + extra);
+}
+
 editor.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey){
     e.preventDefault();
-    const pos = editor.selectionStart;
-    const before = editor.value.slice(0, pos);
-    const line = before.slice(before.lastIndexOf('\n') + 1);
-    let ind = (line.match(/^[ \t]*/) || [''])[0];
-    let extra = '';
-    if (line.trim() === '') ind = '';
-    else if (/:\s*(#.*)?$/.test(line)) extra = '    ';
-    insertRaw('\n' + ind + extra);
+    autoIndentNewline();
     return;
   }
   if (e.key === 'Tab'){ e.preventDefault(); insertRaw('    '); }
@@ -707,6 +712,14 @@ const CLOSERS = new Set([')', ']', '}', '"', "'"]);
 
 editor.addEventListener('beforeinput', (e) => {
   if (suppressAutoClose) return;
+
+  /* Soft keyboards (Gboard etc.) often send key "Unidentified" on Enter, so
+     keydown never sees it. beforeinput always reports the line break. */
+  if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph'){
+    e.preventDefault();
+    autoIndentNewline();
+    return;
+  }
 
   if (e.inputType === 'insertText' && e.data && e.data.length === 1){
     const ch = e.data;
@@ -726,6 +739,14 @@ editor.addEventListener('beforeinput', (e) => {
         focusEditor();
         editor.setSelectionRange(pos + 1, pos + 1);
         onEditorChange();
+        return;
+      }
+      if ((ch === '"' || ch === "'") && pos === end && pos >= 2 &&
+          editor.value[pos - 1] === ch && editor.value[pos - 2] === ch &&
+          editor.value[pos - 3] !== ch){
+        /* Third quote in a row: open a triple-quoted string, e.g. a docstring. */
+        e.preventDefault();
+        insertRaw(ch + ch + ch + ch, 1);
         return;
       }
       if ((ch === '"' || ch === "'") && pos > 0){
@@ -1056,27 +1077,38 @@ function loadFiles(){
 let saveTimer = null;
 let lastSaveError = 0;
 
+function writeStorage(){
+  try {
+    localStorage.setItem(STORE_FILES, JSON.stringify(files));
+    localStorage.setItem(STORE_ACTIVE, activeId || '');
+    lastSaveError = 0;
+  } catch(e){
+    const now = Date.now();
+    if (now - lastSaveError > 30000){
+      lastSaveError = now;
+      if (e && (e.name === 'QuotaExceededError' || e.code === 22)){
+        showSaveWarning('Storage is full. Download a backup to avoid losing work.');
+      } else {
+        showSaveWarning('Could not save. Browser storage may be blocked.');
+      }
+    }
+  }
+}
+
 function persist(){
   const f = activeFile();
   if (f) f.code = editor.value;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(STORE_FILES, JSON.stringify(files));
-      localStorage.setItem(STORE_ACTIVE, activeId || '');
-      lastSaveError = 0;
-    } catch(e){
-      const now = Date.now();
-      if (now - lastSaveError > 30000){
-        lastSaveError = now;
-        if (e && (e.name === 'QuotaExceededError' || e.code === 22)){
-          showSaveWarning('Storage is full. Download a backup to avoid losing work.');
-        } else {
-          showSaveWarning('Could not save. Browser storage may be blocked.');
-        }
-      }
-    }
-  }, 400);
+  saveTimer = setTimeout(writeStorage, 400);
+}
+
+/* Save right now. Mobile browsers often kill the page without beforeunload. */
+function flushSave(){
+  if (!files.length) return;
+  const f = activeFile();
+  if (f) f.code = editor.value;
+  clearTimeout(saveTimer);
+  writeStorage();
 }
 
 function showSaveWarning(msg){
@@ -1234,65 +1266,95 @@ function appendOut(text, cls){
 }
 function clearOutput(){ outputEl.textContent = ''; }
 
-/* ==================== PYODIDE RUNNER ==================== */
-let pyodide = null, pyLoading = null, running = false;
-const PYODIDE_VERSION = '0.26.2';
-const PYODIDE_BASE = 'https://cdn.jsdelivr.net/pyodide/v' + PYODIDE_VERSION + '/full/';
+/* ==================== PYTHON RUNNER (Web Worker) ==================== */
+/* Pyodide runs in pyrunner.js so a stuck loop cannot freeze the UI.
+   Stop = terminate the worker and start a fresh one. */
+let pyWorker = null;
+let pyReady = false;
+let running = false;
 
-function loadScript(src){
-  return new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = src;
-    s.crossOrigin = 'anonymous';
-    s.onload = () => res();
-    s.onerror = () => rej(new Error('load fail ' + src));
-    document.head.appendChild(s);
-  });
+function setRunButton(){
+  btnRun.disabled = false;
+  btnRun.textContent = running ? '\u25A0 Stop' : '\u25B6 Run';
+  btnRun.classList.toggle('stop', running);
 }
-async function ensurePyodide(){
-  if (pyodide) return pyodide;
-  if (pyLoading) return pyLoading;
-  pyLoading = (async () => {
-    if (typeof loadPyodide === 'undefined')
-      await loadScript(PYODIDE_BASE + 'pyodide.js');
-    const py = await loadPyodide({ indexURL: PYODIDE_BASE });
-    py.setStdout({ batched: (msg) => appendOut(msg + '\n') });
-    py.setStderr({ batched: (msg) => appendOut(msg + '\n', 'err') });
-    try {
-      py.setStdin({ stdin: () => {
-        try { const r = window.prompt('input()'); return r === null ? '' : r; }
-        catch(e){ return ''; }
-      }});
-    } catch(e){}
-    pyodide = py;
-    return py;
-  })();
-  try { return await pyLoading; }
-  catch(err){ pyLoading = null; throw err; }
+function finishRun(){ running = false; setRunButton(); }
+
+function swControlled(){
+  return !!(navigator.serviceWorker && navigator.serviceWorker.controller);
 }
-async function runCode(){
-  if (running) return;
+
+function killWorker(){
+  if (pyWorker){ try { pyWorker.terminate(); } catch(_){} }
+  pyWorker = null;
+  pyReady = false;
+}
+
+function ensureWorker(){
+  if (pyWorker) return pyWorker;
+  const w = new Worker('pyrunner.js', { type: 'module' });
+  pyReady = false;
+  w.onmessage = (e) => { if (w === pyWorker) onPyMessage(e.data || {}); };
+  w.onerror = (ev) => {
+    if (w !== pyWorker) return;
+    appendOut('Python worker failed: ' + ((ev && ev.message) || 'could not start') + '\n', 'err');
+    killWorker();
+    finishRun();
+  };
+  pyWorker = w;
+  return w;
+}
+
+function answerStdin(m){
+  let v = '';
+  try {
+    const r = window.prompt(m.prompt || 'input()');
+    v = (r === null) ? '' : r;
+  } catch(e){}
+  const ctl = navigator.serviceWorker && navigator.serviceWorker.controller;
+  if (ctl) ctl.postMessage({ type: 'pyphone-stdin', id: m.id, value: v });
+}
+
+function onPyMessage(m){
+  switch (m.type){
+    case 'ready': pyReady = true; break;
+    case 'fatal':
+      appendOut('Could not load Python: ' + m.error + '\n', 'err');
+      killWorker();
+      finishRun();
+      break;
+    case 'out': appendOut(m.text, m.cls); break;
+    case 'stdin': answerStdin(m); break;
+    case 'done': finishRun(); break;
+  }
+}
+
+function stopRun(){
+  killWorker();
+  appendOut('\nStopped.\n', 'info');
+  finishRun();
+  try { ensureWorker(); } catch(_){}   /* warm up the next run */
+}
+
+function runCode(){
+  if (running){ stopRun(); return; }
   if (!editor.value.trim()){
     openSheet(); clearOutput();
     appendOut('Nothing to run.\n', 'info');
     return;
   }
   running = true;
-  btnRun.disabled = true;
-  btnRun.textContent = '⏳';
+  setRunButton();
   openSheet(); clearOutput();
-  try {
-    const py = await ensurePyodide();
-    await py.runPythonAsync(editor.value);
-  } catch(err){
-    let msg = (err && err.message) ? err.message : String(err);
-    if (!msg.endsWith('\n')) msg += '\n';
-    appendOut(msg, 'err');
-  } finally {
-    running = false;
-    btnRun.disabled = false;
-    btnRun.textContent = '▶ Run';
+  let w;
+  try { w = ensureWorker(); }
+  catch(err){
+    appendOut('Cannot start Python: ' + ((err && err.message) || err) + '\n', 'err');
+    finishRun();
+    return;
   }
+  if (!pyReady) appendOut('Starting Python (first run downloads about 10 MB)...\n', 'info');
+  w.postMessage({ type: 'run', code: editor.value, swReady: swControlled() });
 }
 btnRun.addEventListener('click', runCode);
 document.getElementById('btnKeyboard').addEventListener('click', () => {
@@ -1308,15 +1370,20 @@ const AVAILABLE_PACKAGES = [
   { name: 'sympy',      label: 'SymPy (symbolic math)' },
   { name: 'micropip',   label: 'micropip (pure-Python installer)' },
 ];
-async function loadPackage(name){
-  try {
-    const py = await ensurePyodide();
-    openSheet(); clearOutput();
-    appendOut('Loading ' + name + '...\n', 'info');
-    await py.loadPackage(name);
-    appendOut(name + ' loaded. You can now `import ' + name + '`.\n', 'info');
-  } catch(e){
-    appendOut('Failed to load ' + name + ': ' + String(e.message || e) + '\n', 'err');
+function loadPackage(name){
+  if (running){
+    openSheet();
+    appendOut('Wait for the current run to finish, or tap Stop.\n', 'info');
+    return;
+  }
+  running = true;
+  setRunButton();
+  openSheet(); clearOutput();
+  appendOut('Loading ' + name + '...\n', 'info');
+  try { ensureWorker().postMessage({ type: 'load', name: name }); }
+  catch(err){
+    appendOut('Cannot start Python: ' + ((err && err.message) || err) + '\n', 'err');
+    finishRun();
   }
 }
 function showPackageMenu(){
@@ -1583,18 +1650,12 @@ function downloadPy(){
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
-async function restartPython(){
-  if (!pyodide) return;
-  clearOutput();
-  try {
-    await pyodide.runPythonAsync(
-      'import sys\n' +
-      'for _n in list(globals().keys()):\n' +
-      '    if not _n.startswith("_"):\n' +
-      '        del globals()[_n]\n'
-    );
-    appendOut('Python state cleared.\n', 'info');
-  } catch(e){ appendOut(String(e.message || e) + '\n', 'err'); }
+function restartPython(){
+  killWorker();
+  finishRun();
+  openSheet(); clearOutput();
+  appendOut('Python restarted.\n', 'info');
+  try { ensureWorker(); } catch(_){}
 }
 
 function showHelp(){
@@ -1603,8 +1664,11 @@ function showHelp(){
     const body = document.createElement('div');
     body.className = 'mText';
     body.innerHTML =
-      '<p><b>▶ Run</b> executes real CPython via WebAssembly. First run ' +
-      'downloads ~10 MB; after that it is cached and works offline.</p>' +
+      '<p><b>▶ Run</b> executes real CPython via WebAssembly in the background, ' +
+      'so the editor never freezes. First run downloads ~10 MB; after that it is ' +
+      'cached and works offline. While code runs the button turns into ' +
+      '<b>■ Stop</b>: tap it to kill a stuck loop (Python restarts).</p>' +
+      '<p>Every run starts fresh, so variables from earlier runs are gone.</p>' +
       '<p><b>Tabs:</b> tap <b>+</b> to open a new file, tap a tab to switch, ' +
       'tap × to close. Everything auto-saves.</p>' +
       '<p><b>Type faster:</b><br>' +
@@ -1616,7 +1680,8 @@ function showHelp(){
       '<p><b>Undo / Redo</b> buttons are in the top bar (↶ ↷).</p>' +
       '<p><b>Auto-indent:</b> Enter after a line ending in <code>:</code> ' +
       'indents automatically.</p>' +
-      '<p><b>Packages:</b> ☰ → Load Python package to install NumPy, Pandas, etc.</p>' +
+      '<p><b>Packages:</b> NumPy, Pandas etc. load automatically when you import ' +
+      'them (needs internet the first time). ☰ → Load Python package preloads one.</p>' +
       '<p><b>Backup:</b> ☰ → Export workspace saves all tabs as one .json.</p>' +
       '<p><b>Shortcut:</b> Ctrl/Cmd + Enter runs the code.</p>';
     card.appendChild(body);
@@ -1637,17 +1702,13 @@ document.getElementById('btnMenu').addEventListener('click', showMenu);
   scheduleHighlight();
   renderSuggestions();
   updateViewport();
-  if (navigator.onLine !== false)
-    setTimeout(() => { ensurePyodide().catch(() => {}); }, 1500);
+  setTimeout(() => { try { ensureWorker(); } catch(e){} }, 1500);
 })();
 
-window.addEventListener('beforeunload', () => {
-  const f = activeFile();
-  if (f) f.code = editor.value;
-  try {
-    localStorage.setItem(STORE_FILES, JSON.stringify(files));
-    localStorage.setItem(STORE_ACTIVE, activeId || '');
-  } catch(e){}
+window.addEventListener('beforeunload', flushSave);
+window.addEventListener('pagehide', flushSave);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushSave();
 });
 
 /* ==================== SERVICE WORKER ==================== */
